@@ -8,7 +8,7 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 
 | Phase | Name | Status | Depends on |
 |---|---|---|---|
-| 1 | Nomi Core: direction, taste, critique, Project DNA | NOT STARTED | — |
+| 1 | Nomi Core: direction, taste, critique, Project DNA | IN PROGRESS | — |
 | 2 | Observation engine + Nomi Web | NOT STARTED | 1 |
 | 3 | Multi-host packaging and verification | NOT STARTED | 1, 2 |
 | 4 | Nomi Motion | NOT STARTED | 2 |
@@ -57,7 +57,34 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 
 ## Phase 1 — Nomi Core: direction, taste, critique, Project DNA
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS (interrupted by usage limit, 2026-09-27)
+
+**Progress.**
+- Done:
+  - Stub skills removed; `skills/nomi/` is the only skill.
+  - `SKILL.md`, `assets/dna.md` and `assets/critic-brief.md` written.
+  - CLI: `scripts/nomi.mjs` with `lib/frontmatter.mjs`, `lib/dna.mjs` and `data/vague-words.json`.
+  - `tools/check.mjs`, `package.json`, `.claude-plugin/plugin.json`.
+  - `npm test` 31/31.
+  - Six `core` eval cases and their fixtures.
+  - RED baseline run on Sonnet 5 without the skill, about $1.5 spent:
+    - The tweak, no-trigger and brief-style cases pass without Nomi.
+    - The baseline never opens `.nomi/dna.md`; the continuity case fails the no-date-picker rule 2/2.
+    - The create case falls into the cream + serif + terracotta default cluster (judge FAIL 2/2).
+    - The vague-brief case produces a stock template (judge FAIL).
+- Left:
+  - Write `references/direction.md` and `references/critique.md`; `npm run check` flags both as missing until then.
+  - Run the GREEN evals: `claude plugin eval . --tag core --model claude-sonnet-5 --judge-model sonnet --allow-tools Write Edit --scaffold --trust-plugin --no-publish -j 3 --max-cost-usd 25`.
+  - Decide D13.
+  - Write `evals/reports/phase-1.md`.
+  - Update EVALUATION.md: the case notes and the Sonnet judge.
+  - Self-review.
+- Rulings made so far are in the session ledger. Key ones:
+  - No commits; the repo is not a git repository.
+  - Evals run natively on Windows with file tools only.
+  - The agent under test is pinned to `claude-sonnet-5`.
+  - Every eval run passes `--no-publish`.
+  - Continuity is tested with a DNA rule that conflicts with a model habit.
 
 **Objective.** One canonical `nomi` skill that measurably changes what agents do on creative work (tiered effort, direction before code, persistent DNA, evidence-bound critique), with the CLI foundation, repo checks and the first Claude Code behavior evals.
 

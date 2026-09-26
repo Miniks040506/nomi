@@ -1,8 +1,45 @@
-__pycache__/
-*.pyc
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 build/
+coverage/
+
+# Temporary/cache
+.cache/
+.tmp/
+tmp/
+*.tmp
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment / secrets
 .env
 .env.*
+!.env.example
+
+# OS / editors
 .DS_Store
+Thumbs.db
+.idea/
+
+# Test / browser generated output
+playwright-report/
+test-results/
+
+# Nomi runtime artifacts
+.nomi/runs/
+
+# Evaluation generated results
+evals/results/
+
+# Release artifacts
+*.zip
+*.tgz
+
+# tests
+tests/
