@@ -34,6 +34,9 @@ test-results/
 # Nomi runtime artifacts
 .nomi/runs/
 
+# Local prompts
+prompts/
+
 # Evaluation generated results
 evals/results/
 
