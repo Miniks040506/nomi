@@ -8,7 +8,7 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 
 | Phase | Name | Status | Depends on |
 |---|---|---|---|
-| 1 | Nomi Core: direction, taste, critique, Project DNA | IN PROGRESS | — |
+| 1 | Nomi Core: direction, taste, critique, Project DNA | DONE | — |
 | 2 | Observation engine + Nomi Web | NOT STARTED | 1 |
 | 3 | Multi-host packaging and verification | NOT STARTED | 1, 2 |
 | 4 | Nomi Motion | NOT STARTED | 2 |
@@ -57,34 +57,7 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 
 ## Phase 1 — Nomi Core: direction, taste, critique, Project DNA
 
-**Status:** IN PROGRESS (interrupted by usage limit, 2026-09-27)
-
-**Progress.**
-- Done:
-  - Stub skills removed; `skills/nomi/` is the only skill.
-  - `SKILL.md`, `assets/dna.md` and `assets/critic-brief.md` written.
-  - CLI: `scripts/nomi.mjs` with `lib/frontmatter.mjs`, `lib/dna.mjs` and `data/vague-words.json`.
-  - `tools/check.mjs`, `package.json`, `.claude-plugin/plugin.json`.
-  - `npm test` 31/31.
-  - Six `core` eval cases and their fixtures.
-  - RED baseline run on Sonnet 5 without the skill, about $1.5 spent:
-    - The tweak, no-trigger and brief-style cases pass without Nomi.
-    - The baseline never opens `.nomi/dna.md`; the continuity case fails the no-date-picker rule 2/2.
-    - The create case falls into the cream + serif + terracotta default cluster (judge FAIL 2/2).
-    - The vague-brief case produces a stock template (judge FAIL).
-- Left:
-  - Write `references/direction.md` and `references/critique.md`; `npm run check` flags both as missing until then.
-  - Run the GREEN evals: `claude plugin eval . --tag core --model claude-sonnet-5 --judge-model sonnet --allow-tools Write Edit --scaffold --trust-plugin --no-publish -j 3 --max-cost-usd 25`.
-  - Decide D13.
-  - Write `evals/reports/phase-1.md`.
-  - Update EVALUATION.md: the case notes and the Sonnet judge.
-  - Self-review.
-- Rulings made so far are in the session ledger. Key ones:
-  - No commits; the repo is not a git repository.
-  - Evals run natively on Windows with file tools only.
-  - The agent under test is pinned to `claude-sonnet-5`.
-  - Every eval run passes `--no-publish`.
-  - Continuity is tested with a DNA rule that conflicts with a model habit.
+**Status:** DONE (2026-09-27)
 
 **Objective.** One canonical `nomi` skill that measurably changes what agents do on creative work (tiered effort, direction before code, persistent DNA, evidence-bound critique), with the CLI foundation, repo checks and the first Claude Code behavior evals.
 
@@ -130,7 +103,30 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 - DNA v1 is a one-way door for users: keep the frontmatter minimal and the sections exactly as in ARCHITECTURE §6.
 - The critique protocol forbids unobserved claims even before the engine exists: evidence is code references plus explicit "not visually verified".
 
-**Outcome:** _pending_
+**Outcome** (2026-09-27, full evidence in `evals/reports/phase-1.md`):
+- All six acceptance criteria met.
+  - AC1–3: `skills/nomi/` is the only skill; `npm run check` is clean, with every rule proven by a violating fixture; `npm test` passes 36/36 on Windows and on Linux (WSL2, portable Node 24).
+  - AC4, final A/B, 42 runs on Sonnet 5, $9.47:
+    - create-writes-dna: valid DNA 3/3.
+    - tweak-respects-dna: 3/3 clean.
+    - build-continuity: 1.00 with the skill vs 0.83 without (the DNA-only rule held 3/3 vs 0/3).
+    - no-trigger-backend: 3/3.
+    - vague-brief-translated: 2/3.
+    - brief-style-wins: 2/3. The single failure is a judge false negative on a page with exactly the requested tokens.
+  - AC5: every eval ran without a shell.
+  - AC6: D13 decided (see Deviations).
+- Deviations, each recorded as a ruling:
+  - Skill description rewritten. The first description never fired on an ordinary "add a form" request, so the DNA went unread 3/3.
+  - D13 reversed: `dna init` now writes a one-line DNA pointer into `AGENTS.md`/`CLAUDE.md`.
+  - `critique pack --out` creates folders.
+  - Three self-review fixes: BOM handling, one-line frontmatter errors with file line numbers, and `<skill-dir>/` path checks.
+  - Two graders corrected: one was non-discriminating, one penalised compliance.
+- For later phases:
+  - Create-tier runs cost 2–4× the baseline; the Phase 8 overhead gates need calibrating against this.
+  - The effect of the D13 pointer on agents without Nomi can only be measured outside `claude plugin eval` (Phase 3, U11).
+  - Judges must see renders, not long HTML (Phase 2).
+  - Verify skill triggering per host early in Phase 3; it was the main failure mode here.
+- Total eval spend: about $21.5.
 
 ---
 
@@ -506,3 +502,4 @@ Recorded with triggers in ARCHITECTURE §14 (D1–D13). The only one-way door fo
 ## Plan changelog
 
 - 2026-09-27: initial plan from the master planning run (research, architecture, eight phases).
+- 2026-09-27: Phase 1 DONE. D13 reversed (DNA pointer in AGENTS.md/CLAUDE.md); skill description rewritten after the continuity eval; U11 added to INTEGRATIONS.

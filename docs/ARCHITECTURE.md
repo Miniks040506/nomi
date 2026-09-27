@@ -65,7 +65,7 @@ skills/nomi/
 │   └── hooks/           dev-only instrumentation snippets (Three.js, React Three Fiber, games)
 └── scripts/
     ├── nomi.mjs         CLI entry
-    ├── lib/             browser, cdp, serve, capture, compose, runs, yaml-subset, dna, canon, out
+    ├── lib/             frontmatter (YAML subset), dna; later browser, cdp, serve, capture, compose, runs, canon
     ├── probes/          in-page JS returning JSON: web-census, motion, three, game
     └── data/            small dated tables: fingerprints, vague-words, generic-names
 ```
@@ -173,7 +173,7 @@ sources:                    # pointers only: Nomi reads these, never copies thei
 - `DESIGN.md` (Google Labs open format, alpha) is the visual token source when present; drift checks compare rendered output with its `colors` and `typography`. Nomi does not create one unless asked.
 - `PRODUCT.md` or brand documents are read as intent input.
 - Rendered CSS custom properties are the implementation truth; Nomi measures rendered values rather than parsing framework configs.
-- `AGENTS.md` / `CLAUDE.md` are untouched by default; whether a one-line pointer to DNA improves cross-agent adherence is decided by the Phase 1 continuity eval (D13).
+- `nomi dna init` appends one line pointing to `.nomi/dna.md` to each existing `AGENTS.md` and `CLAUDE.md`, or creates `AGENTS.md` when neither exists (D13). Skills load only when a host judges them relevant, and in Phase 1 evals an ordinary "add a form" request left the DNA unread 3/3 times. The always-read instruction file makes every agent see the DNA, including agents without Nomi installed.
 
 ## 7. Observation engine
 
@@ -280,7 +280,7 @@ V1 non-goals: hooks, an MCP server, user-level taste profiles, non-browser obser
 | D10 | Distribution through project/user folders plus native packages (Claude Code plugin, Agent Plugins, Gemini CLI extension); Antigravity and OpenCode through folders only | Uses each host's real mechanism | Additive |
 | D11 | Automated observation only for browser-rendered targets | Web, WebGL and web games share one engine | Future per-engine adapters |
 | D12 | Evals: `claude plugin eval` for Claude Code behavior suites; the Nomi runner for cross-host outcome A/B | First-party isolation where it exists | Easy |
-| D13 | No edits to AGENTS.md or CLAUDE.md by default | Least intrusion | Decided by the Phase 1 continuity eval |
+| D13 | `dna init` adds a one-line DNA pointer to AGENTS.md and CLAUDE.md (creating AGENTS.md if neither exists) | Phase 1 eval: skill activation alone left the DNA unread in 3/3 runs of an ordinary UI request; persistent state must not depend on a skill firing | Easy: remove the line. Its effect on agents without Nomi is verified per host in Phase 3 (INTEGRATIONS U11); revisit if hosts gain a standard way to register project state |
 
 ## 15. Glossary
 

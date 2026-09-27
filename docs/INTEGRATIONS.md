@@ -111,6 +111,7 @@ All manifests share one `name` (`nomi`) and one `version`; `tools/check.mjs` fai
 | U8 | Does Cursor's `agent -p` load skills? | Headless trigger prompt; fall back to documented IDE verification |
 | U9 | Claude Code reads a root `plugin.json` as well as `.claude-plugin/plugin.json`; precedence is undocumented | Keep both identical; confirm with `claude plugin validate .` and a load test |
 | U10 | Can each host's model open local PNG files? | Headless run asking the agent to describe a fixture image |
+| U11 | Which instruction file does each host always read? The DNA pointer (D13) goes into `AGENTS.md` and `CLAUDE.md`; a host reading neither sees the DNA only when the skill fires | Headless run in a project that holds only the pointer and the DNA; record whether the agent opens `.nomi/dna.md` |
 
 ## 7. Verification protocol
 

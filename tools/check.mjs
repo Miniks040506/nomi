@@ -12,7 +12,7 @@ const DESCRIPTION_BUDGET = 400;
 const TEXT_FILES = /\.(md|mjs|js|json|txt|ya?ml)$/;
 const HOST_SYNTAX = /\$\{CLAUDE_|\$ARGUMENTS|CLAUDE_PLUGIN_/g;
 const HOST_WORDS = /Claude Code|Codex|Cursor|OpenCode|Gemini|Antigravity|OpenClaw|Hermes|\b(?:Bash|Read|Write|Edit|Task|Skill|Agent) tool\b|activate_skill|skill_view|skills_list|TodoWrite|AskUserQuestion/g;
-const SKILL_PATH = /(?:\]\(|`)((?:references|assets|scripts)\/[^)`\s#]+)/g;
+const SKILL_PATH = /(?:\]\(|`|<skill-dir>\/)((?:references|assets|scripts)\/[^)`\s#]+)/g;
 
 export function checkSkill(dir) {
   const findings = [];

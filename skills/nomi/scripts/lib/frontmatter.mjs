@@ -3,11 +3,18 @@
 // a line number, so a file that strict host parsers would reject never passes here.
 
 export function splitFrontmatter(text) {
-  const src = text.replace(/\r\n?/g, '\n');
+  const src = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
   const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(src);
   if (!match) return { data: null, body: src, bodyLine: 1 };
+  let data;
+  try {
+    data = parseYaml(match[1]);
+  } catch (err) {
+    // Report file lines: the YAML block starts one line below the opening "---".
+    throw err instanceof FrontmatterError ? new FrontmatterError(err.line + 1, err.detail) : err;
+  }
   return {
-    data: parseYaml(match[1]),
+    data,
     body: src.slice(match[0].length),
     bodyLine: match[0].replace(/\n$/, '').split('\n').length + 1,
   };
@@ -106,6 +113,14 @@ function closingQuote(v, line) {
   throw fail(line, 'unterminated string');
 }
 
+export class FrontmatterError extends Error {
+  constructor(line, detail) {
+    super(`frontmatter line ${line}: ${detail}`);
+    this.line = line;
+    this.detail = detail;
+  }
+}
+
 function fail(line, message) {
-  return new Error(`frontmatter line ${line}: ${message}`);
+  return new FrontmatterError(line, message);
 }

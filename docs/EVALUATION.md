@@ -27,7 +27,7 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 
 | Suite | Phase | Kind | Cases | Primary metric | Hosts |
 |---|---|---|---|---|---|
-| `core` | 1 | L2 | tweak-respects-dna, create-writes-dna, build-continuity, no-trigger-backend, vague-brief-translated, brief-style-wins | Tier behavior and DNA validity vs baseline | Claude Code |
+| `core` | 1 | L2 | Discriminating: build-continuity (a DNA-only rule), create-writes-dna, vague-brief-translated (judge on the visual system). Guards that the baseline already passes: tweak-respects-dna, no-trigger-backend, brief-style-wins | With/without score per case; guards must not regress | Claude Code |
 | `web-seeded` | 2 | L3 | 3 fixtures: contrast/overflow/type-scale chaos; default SaaS-card kit; invisible focus + filler copy | Seeded S1 defects fixed, new S1 introduced | Claude Code; Codex from 3 |
 | `web-golden` | 2 | L3 | 3 contrasting briefs | Blinded pairwise preference | Claude Code; Codex from 3 |
 | `web-adherence` | 2 | L2 | 2 Build/Create tasks | Observe-before-claim, citation validity | Claude Code |
@@ -66,6 +66,11 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 - Objective S1 checks (contrast, overflow, focus, latency, contradictions) are fine to grade deterministically.
 - Every seeded fixture contains decoys, intentional choices that look like defects (for example DNA-declared all-caps labels). "Fixing" a decoy counts as a regression.
 
+**Grader lessons from Phase 1** (apply to every later suite)
+- A continuity rule only discriminates if it conflicts with a model habit. Current models copy the style of existing code unprompted, so rules the code already shows (no cards, one accent colour) pass without Nomi.
+- Regexes for Never items must match violations, not mentions: `border-radius: 0` enforces "no rounded corners". Test every grader pattern against compliant and violating snippets before a run.
+- Judge the visual system, not the copy: specific copy on a default-cluster page passed a lenient rubric. Design rubrics use a stronger judge than the default one.
+
 ## 5. Metrics and gates
 
 Initial gates; recalibrate after the first baseline run and record any change here with the reason.
@@ -85,7 +90,8 @@ Initial gates; recalibrate after the first baseline run and record any change he
 
 ## 6. Runners and isolation
 
-- **`claude plugin eval`** (Claude Code ≥2.1.269) runs behavior suites with built-in with/without-plugin arms, three runs per arm, and cost ceilings (`--max-cost-usd`). Suites that grant Bash run under WSL2 or Linux, because native Windows has no sandbox backend. Suites that only need file tools run natively.
+- **`claude plugin eval`** (Claude Code ≥2.1.269) runs behavior suites with built-in with/without-plugin arms, three runs per arm, and cost ceilings (`--max-cost-usd`). Suites that grant Bash run under WSL2 or Linux, because native Windows has no sandbox backend. Suites that only need file tools run natively; scaffold scripts run natively too (via Git Bash). Always pass `--no-publish`, because reports publish to claude.ai by default. Pin the agent model (`--model`) and use `--judge-model sonnet` for design rubrics. Its judge is a Claude model, so cross-vendor judging starts with the Nomi runner in Phase 2.
+- Standard invocation: `claude plugin eval . --tag <suite> --model claude-sonnet-5 --judge-model sonnet --allow-tools Write Edit --scaffold --trust-plugin --no-publish -j 4 --max-cost-usd 25`.
 - **Nomi runner** (`evals/harness/`, Phase 2) runs outcome A/B: a fresh temp workspace per run, the host's headless CLI, post-run neutral rendering, deterministic, transcript and judge graders. Phase 2 ships the Claude Code driver; Phase 3 adds Codex (full A/B) and trigger/smoke drivers for the remaining hosts.
 - **Baseline hygiene**: the baseline arm must show zero Nomi activation; each result records host version, model, and the list of installed skills and plugins, because other installed skills (for example a design skill) change the baseline.
 - **Competitor baseline** (optional, reported, never gated): web suites may add an arm with Anthropic's `frontend-design` skill so Nomi's value over the strongest common alternative is visible.

@@ -1,6 +1,6 @@
 ---
 name: nomi
-description: Use when designing, building, restyling, polishing or reviewing anything people see, feel or play (web pages and UI, animation and motion, 3D or WebGL scenes, games and game feel, fictional worlds and lore), when output looks generic or AI-made, or when a project's look and feel must stay consistent across sessions.
+description: "Use when adding or changing anything people see, feel or play: pages, sections, components, forms and styling, animation and motion, 3D or WebGL scenes, game mechanics and feel, fictional worlds and lore. Also use when output looks generic or AI-made, when asked to review or polish such work, or in any project that has a .nomi/ folder."
 compatibility: Optional Node.js 22+ for scripts. Without it the process still applies; results are marked unverified.
 metadata:
   version: "0.1.0"

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { splitFrontmatter } from './lib/frontmatter.mjs';
+import { splitFrontmatter, FrontmatterError } from './lib/frontmatter.mjs';
 import { findDna, checkDna, sliceDna, DOMAINS } from './lib/dna.mjs';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -51,8 +51,26 @@ function dnaInit() {
   fs.writeFileSync(target, read('assets', 'dna.md').replace('{{project}}', () => path.basename(process.cwd())));
   const ignore = path.join(dir, '.gitignore');
   if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, 'runs/\n');
-  console.log(`created ${rel(target)}: fill Intent, Character, Signature and Never, then run: nomi dna check`);
+  const pointed = pointAgentsAtDna();
+  const note = pointed.length ? `; ${pointed.join(' and ')} now point to it` : '';
+  console.log(`created ${rel(target)}${note}. Fill Intent, Character, Signature and Never, then run: nomi dna check`);
   return 0;
+}
+
+// Skills load only when a host decides they are relevant; the project's always-read
+// instruction files make every agent, with or without Nomi, see the DNA.
+function pointAgentsAtDna() {
+  const pointer = 'Creative direction for this project lives in `.nomi/dna.md`: read it before changing anything people see, and follow its Never list.';
+  const files = ['AGENTS.md', 'CLAUDE.md'].map((f) => path.join(process.cwd(), f)).filter((f) => fs.existsSync(f));
+  if (!files.length) files.push(path.join(process.cwd(), 'AGENTS.md'));
+  const touched = [];
+  for (const file of files) {
+    const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    if (text.includes('.nomi/dna.md')) continue;
+    fs.writeFileSync(file, text ? `${text.replace(/\n*$/, '\n')}\n${pointer}\n` : `${pointer}\n`);
+    touched.push(path.basename(file));
+  }
+  return touched;
 }
 
 function dnaCheck(opts, file) {
@@ -92,6 +110,7 @@ function critiquePack(opts) {
     process.stdout.write(brief);
     return 0;
   }
+  fs.mkdirSync(path.dirname(path.resolve(opts.out)), { recursive: true });
   fs.writeFileSync(opts.out, brief);
   console.log(`wrote ${opts.out}`);
   return 0;
@@ -139,7 +158,8 @@ function run(argv) {
 try {
   process.exitCode = run(process.argv.slice(2));
 } catch (err) {
-  if (!(err instanceof UsageError) && err.code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION' && err.code !== 'ERR_PARSE_ARGS_INVALID_OPTION_VALUE') throw err;
+  const expected = err instanceof UsageError || err instanceof FrontmatterError || String(err.code).startsWith('ERR_PARSE_ARGS_');
+  if (!expected) throw err;
   console.error(`nomi: ${err.message}`);
   process.exitCode = 2;
 }
