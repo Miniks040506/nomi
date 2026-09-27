@@ -1,50 +1,75 @@
-# Codex: implement the next Nomi phase
+Continue building Nomi from the current repository state.
 
-You are continuing Nomi V1, a vendor-neutral creative-intelligence skill for coding agents. Phase 1 is DONE. Your job in this session is to implement exactly **one** phase, completely, then stop.
+Read:
+- `AGENTS.md`
+- `docs/IMPLEMENTATION_PLAN.md`
+- `docs/ARCHITECTURE.md`
+- `docs/INTEGRATIONS.md` and `docs/EVALUATION.md`
+- the latest `evals/reports/phase-*.md` (lessons from earlier phases)
+- relevant existing code and docs
 
-## Read first
-1. `AGENTS.md`
-2. `docs/IMPLEMENTATION_PLAN.md`: the source of truth for scope, acceptance criteria and status
-3. `docs/ARCHITECTURE.md`, `docs/INTEGRATIONS.md`, `docs/EVALUATION.md`
-4. `evals/reports/phase-1.md`: lessons that apply to every later phase
-5. The existing code: `skills/nomi/`, `tools/check.mjs`, `tests/`, `evals/`
+Find the **next incomplete, unblocked implementation phase**. If a phase is `IN PROGRESS`, resume it from the repository state and do not redo finished work.
 
-## Pick the phase
-Take the first phase whose status is not `DONE` and whose dependencies are all `DONE`. If a phase is `IN PROGRESS`, resume it from the repo state; do not redo finished work. Set its status to `IN PROGRESS` when you start.
+Implement that entire phase.
 
-Before coding, check that the phase still makes sense against the current repo. If the plan is wrong, change the plan: edit the phase in `docs/IMPLEMENTATION_PLAN.md` and record the deviation and its reason in the phase's Outcome.
+Do not split it into artificial microtasks and do not stop after implementing only one file or one small component.
 
-## Non-negotiable rules
-- **Vendor-neutral skill.** Nothing host-specific inside `skills/nomi/`: no host names, no host variables, no host tool names. `npm run check` enforces this and must pass. Host differences go in root manifests and `adapters/hosts.json` only. You are one of the target hosts; do not tailor the skill to yourself.
-- **Behavior over vocabulary.** Every file must change what an agent decides, does or checks. Domain modules follow the six-section contract (ARCHITECTURE §4) within their line budgets. No design handbooks, framework tutorials or large rule catalogs.
-- **Reuse before adding.** Extend `lib/frontmatter.mjs`, `lib/dna.mjs`, `scripts/nomi.mjs` and `tools/check.mjs`; do not create parallel versions. Zero runtime npm dependencies inside `skills/nomi/`; Node ≥22.
-- **TDD for code.** Write a failing test first, watch it fail for the right reason, then implement. `npm test` and `npm run check` must be green on Windows and on Linux. For Linux, run in WSL2 with the portable Node at `/tmp/node-v24.14.0-linux-x64/bin`: add it to `PATH`, and re-download the tarball from nodejs.org into `/tmp` if it is gone. Never install system packages.
-- **No unverified claims.** A host counts as supported only with evidence recorded in `docs/INTEGRATIONS.md`, including version and date.
-- **Do not invent user decisions.** The license and GitHub owner/repo stay open (use `<owner>/<repo>`). Never publish, tag a release, push, or submit to a marketplace; prepare those steps and list them for the user.
+Before coding, briefly verify that the planned phase still makes architectural sense given the current repository state. Improve the plan if implementation has revealed a better approach, and record the change in the phase's Outcome.
 
-## Evals (see EVALUATION.md)
-- **Suites.** Run the phase's suites as with/without-Nomi A/B, 3 runs per arm. Write `evals/reports/phase-N.md` with the environment, per-case with/without numbers, spread, cost and limitations.
-- **See the baseline first.** Record what agents do without the module before writing the module text.
-- **Check every run's `error` field before trusting a result.** In Phase 1 an account session limit silently zeroed a whole run.
-- **Test grader regexes first.** Try every regex against compliant and violating snippets before a paid run. In Phase 1, `border-radius: 0` was wrongly scored as a violation.
-- **Judge renders, not long HTML source.** LLM judges gave false negatives on long files.
-- **`claude plugin eval`.** Always pass `--no-publish --trust-plugin --model claude-sonnet-5 --judge-model sonnet`. It refuses shell-granting cases on native Windows. It also never loads a project's `CLAUDE.md`.
-- **Shell-requiring suites use the Nomi runner.** Phase 2 builds it in `evals/harness/`; it drives `claude -p` / `codex exec` in isolated temp workspaces. When you run `codex exec` as a host under test, use a fresh temp workspace so this repo's `AGENTS.md` does not leak into the run.
-- **Spend.** Ceiling $25 of model spend per phase. If the phase needs more, stop and ask.
+During the phase:
+- implement production-quality behavior
+- preserve Nomi's vendor-neutral core: nothing host-specific inside `skills/nomi/`. `npm run check` enforces this; do not tailor the skill to Codex, which is one of the hosts under test
+- avoid duplicating capabilities the base coding model already has
+- keep skill entrypoints concise and domain modules within the six-section contract and line budgets
+- use progressive disclosure
+- add deterministic scripts when they are better than prose; extend the existing CLI, libs and `tools/check.mjs` instead of creating parallel ones; zero runtime npm dependencies in the skill; Node ≥22
+- write a failing test first for every code unit, and watch it fail for the right reason
+- implement real platform integration rather than claiming unsupported compatibility; record evidence (version, date) in `docs/INTEGRATIONS.md`
+- add/update tests and evals appropriate to the capability
+- keep documentation synchronized with implementation
+- never invent user decisions (license, GitHub owner) and never publish, push, tag or submit anything; prepare those steps and list them for the user
 
-## Finish the phase
-1. Meet every acceptance criterion with evidence; otherwise leave the status `IN PROGRESS` and list exactly what remains.
-2. Run `npm test` and `npm run check` (Windows and WSL2), plus `claude plugin validate .` when manifests change.
-3. Bring docs in line with the behavior. Update the phase status, its Outcome (what shipped, eval numbers, deviations, issues for later phases) and the plan changelog.
-4. Self-review the diff for bugs, duplication and context bloat. Fix material findings test-first.
-5. Commit only this phase's files: `git commit -m "Phase N: <name>"`.
-6. Report: the phase completed, major decisions, validation and eval results with costs, and issues that affect later phases. Then **stop**. Do not start the next phase.
+For Nomi features, continuously ask:
+> What does this make the agent actually do differently?
 
-After Phase 8 is DONE, also write `docs/HANDOFF.md`, one page:
-- what V1 does;
-- per-host status;
-- where the evidence lives;
-- known gaps;
-- the user decisions still open.
+Reject features that add mostly terminology or documentation without meaningful behavioral value.
 
-Then tell the user the repository is ready for an independent review.
+Evals (follow `docs/EVALUATION.md`):
+- Before writing a module's text, run its cases without Nomi to see the baseline behavior.
+- Run the phase's suites as with/without A/B, 3 runs per arm. Write `evals/reports/phase-N.md` with environment, per-case numbers, spread, cost and limitations.
+- Check every run's `error` field before trusting a result (a session limit once errored every run of a suite).
+- Test every grader regex against compliant and violating snippets before a paid run.
+- Judge rendered screenshots, not long HTML source.
+- `claude plugin eval` always runs with `--no-publish --trust-plugin --model claude-sonnet-5 --judge-model sonnet`. It refuses shell-granting cases on native Windows and never loads a project's `CLAUDE.md`; use the Nomi runner (`evals/harness/`) for anything that needs a shell.
+- When running an agent as a host under test, use a fresh temp workspace so this repository's `AGENTS.md` does not leak in.
+- Stay under $25 of model spend per phase; stop and ask if more is needed.
+
+Before finishing the phase:
+1. run `npm test` and `npm run check` on Windows and on Linux (WSL2 with the portable Node in `/tmp/node-v24.14.0-linux-x64/bin`; re-download it into `/tmp` if missing; no system installs), plus `claude plugin validate .` if manifests changed
+2. run applicable evals
+3. fix meaningful failures
+4. check for context bloat or unnecessary abstractions
+5. update architecture/docs if behavior changed
+6. update `docs/IMPLEMENTATION_PLAN.md`: status, Outcome and changelog
+7. commit only this phase's files: `git commit -m "Phase N: <name>"`
+
+Mark the phase `DONE` only when its acceptance criteria are actually satisfied.
+
+Do **not** automatically start the next major phase.
+
+Finish by reporting:
+- phase completed
+- major implementation decisions
+- validation/eval results, with costs
+- any issue that should affect later phases
+
+After Phase 8, also write `docs/HANDOFF.md`, one page:
+- what V1 does
+- per-host status
+- where the evidence lives
+- known gaps
+- the user decisions still open
+
+Then state that the repository is ready for independent review.
+
+Then stop.
