@@ -65,7 +65,7 @@ skills/nomi/
 │   └── hooks/           dev-only instrumentation snippets (Three.js, React Three Fiber, games)
 └── scripts/
     ├── nomi.mjs         CLI entry
-    ├── lib/             frontmatter (YAML subset), dna; later browser, cdp, serve, capture, compose, runs, canon
+    ├── lib/             frontmatter (YAML subset), dna, browser, cdp, serve, capture, compose, runs; later canon
     ├── probes/          in-page JS returning JSON: web-census, motion, three, game
     └── data/            small dated tables: fingerprints, vague-words, generic-names
 ```
@@ -181,13 +181,24 @@ sources:                    # pointers only: Nomi reads these, never copies thei
 |---|---|
 | Targets | A URL (a dev server the agent started), an HTML file, or a directory served by a built-in static server |
 | Browser | First Chromium-family browser found: `NOMI_BROWSER`, then installed Chrome, Edge or Chromium, then a chrome-headless-shell cache. Headless, temporary profile |
-| Control | Chrome DevTools Protocol from Node with zero npm dependencies; pipe transport preferred (no open port), WebSocket fallback |
+| Control | Chrome DevTools Protocol from Node with zero npm dependencies; pipe on Linux, WebSocket on Windows because Node's Windows stdio pipes do not implement Chromium's inherited-handle protocol. Browser-selected loopback port, temporary profile, no externally exposed debugger |
 | Measurement | `probes/*.js` are plain in-page functions returning JSON. `nomi probe print <name>` lets a host's own browser tool run the same probe when Nomi cannot launch a browser (sandboxed hosts) |
 | Images | Screenshots per viewport; contact sheets and before/after sheets composed in the browser's canvas (no image libraries); downscaled viewing copies |
 | Output | `.nomi/runs/<id>/report.json` (versioned; stable flag codes such as `web.contrast`, `motion.layout-property`), `summary.md` (≤60 lines), ≤4 images to open by default |
 | Time | Web, 2 viewports ≤15 s; motion ≤30 s; 3D ≤30 s; game playtest ≤60 s. Every wait is bounded |
-| Fidelity | Headless WebGL may be software-rendered: performance is reported as budgets (draw calls, triangles, textures), not FPS. `--headed` for GPU checks |
-| Safety | Local only, no telemetry, temp profile removed. The browser sandbox stays on; if launch fails inside a restricted host, retry without it only for local targets and say so |
+| Fidelity | Web capture is headless. Later WebGL measurements may be software-rendered; performance budgets and headed checks are future domain work, not implemented flags |
+| Safety | Local artifacts, no Nomi telemetry, temp profile removed. The browser sandbox stays on. Restricted-host failures use `probe print web` through an available host browser, or report not visually verified. URL targets may themselves make network requests |
+
+Phase 2 implementation boundaries:
+- Reports use `nomi: 1`, `kind: web|diff`, viewport census, stable finding codes, notes and absolute artifact paths. They are local evidence, not portable archives.
+- Text summaries are capped at 60 lines; JSON and critic packets preserve evidence rather than silently truncating their data. Up to four images are suggested for opening; individual viewport screenshots remain in the run folder.
+- Platform-font and keyboard passes sample at most 200 elements/controls; the keyboard pass also has a 1200 ms budget. Unvisited controls are explicitly unverified. The portable console probe has the same census keys, but uses a programmatic focus heuristic and leaves actual rendered families null.
+- Focus handlers can run during measurement; use a disposable development state for pages with focus side effects. Focus and scroll are restored, but arbitrary application event-handler effects cannot be undone. This replaces the unrealistic promise of pure interaction probes.
+- Contrast over images, gradients, opacity, filters or unsupported colour spaces is unknown. Pseudo-elements, shadow roots, canvas, occlusion and interaction states need visual review. Overflow counts when the page scrolls sideways, or when visible content is clipped by more than 8 px. Smaller clipped bleed (optical negative margins) and wholly left-offscreen elements such as skip links are not flagged. Viewports narrower than 768 px are emulated as phones (overlay scrollbars, `<meta viewport>` honoured), so a phone capture never loses 15 px to a desktop scrollbar.
+- Census counts, token drift and dated copy fingerprints are questions, not a taste score. Layout identity is judged from screenshots; there is no reliable deterministic generic-layout detector in V1.
+- Static serving rejects traversal, dot paths and escaping symlinks. Browser waits are bounded; continuous requests yield a warning and current-state capture. Contact sheets use a separate blank browser target.
+- Cleanup: Windows kills the browser tree with `taskkill` by absolute path, waits for the root to exit, and retries profile removal for about 5 s, because killed trees release file locks late. A profile that stays locked produces a stderr warning; it never turns a finished capture into a failure. Discovery never looks in world-writable folders; portable binaries are passed through `NOMI_BROWSER`.
+- Runs resolve from the working directory, so SKILL.md tells agents to run the CLI from the project folder. In Phase 2 evals, agents sometimes ran it from the skill folder or the project's parent. The captures were still valid, but they landed outside the project (Phase 3, U1).
 
 Non-browser targets (native apps, Godot, Unity) get judgment only in V1 and are reported as not visually verified unless the host itself can show the result.
 

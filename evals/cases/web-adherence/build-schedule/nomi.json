@@ -1,0 +1,16 @@
+{
+  "fixture": "web-field-notes",
+  "tier": "Build",
+  "target": "index.html",
+  "regex": [
+    {
+      "id": "decoy",
+      "file": "index.html",
+      "source": "renderedCopy",
+      "pattern": "STATION A7",
+      "expect": true,
+      "compliant": "STATION A7",
+      "violating": "missing intentional choice"
+    }
+  ]
+}

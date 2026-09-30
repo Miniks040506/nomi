@@ -9,7 +9,7 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 | Phase | Name | Status | Depends on |
 |---|---|---|---|
 | 1 | Nomi Core: direction, taste, critique, Project DNA | DONE | — |
-| 2 | Observation engine + Nomi Web | NOT STARTED | 1 |
+| 2 | Observation engine + Nomi Web | DONE | 1 |
 | 3 | Multi-host packaging and verification | NOT STARTED | 1, 2 |
 | 4 | Nomi Motion | NOT STARTED | 2 |
 | 5 | Nomi 3D | NOT STARTED | 2 |
@@ -132,7 +132,7 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 
 ## Phase 2 — Observation engine + Nomi Web
 
-**Status:** NOT STARTED
+**Status:** DONE (2026-09-30)
 
 **Objective.** Give agents real eyes on browser-rendered work: zero-dependency capture, in-page measurement, run diffs and critic packets with evidence. Ship the Web module and prove it on seeded-defect and golden web evals against the vanilla host.
 
@@ -177,7 +177,7 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 5. `probe print web` output runs in a plain browser console and returns the same JSON keys as `observe`.
 6. Without a browser, `observe` exits 2 in under 10 s with an actionable message, and SKILL.md tells the agent the next step: run `probe print` through a host browser tool if one exists, otherwise report "not visually verified".
 7. Evals on Claude Code:
-   - With Nomi, more seeded S1 defects get fixed than in the baseline on ≥2 of 3 fixtures, with no new S1 in ≥90% of runs and decoys intact.
+   - With Nomi, more seeded S1 defects get fixed than in the baseline on ≥2 of 3 fixtures, with no new S1 in ≥90% of runs and decoys intact. *Recalibrated 2026-09-30 (user decision; baseline at ceiling, EVALUATION §5): seeded repair within noise of baseline, no new S1 in ≥90% of runs, decoys intact; and fewer Build/Create pages ship with S1 findings with Nomi than without.*
    - Observe-before-claim holds in ≥80% of with-Nomi Build/Create runs.
    - Citation validity is ≥95%.
    - Golden briefs: with-Nomi output is preferred in ≥60% of blinded, position-swapped judgments.
@@ -192,9 +192,35 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 - Sandbox findings from running Codex against `observe` feed Phase 3 (U3).
 - Decide D9 (reminder hook) from the observe-before-claim rate.
 
-**Outcome:** _pending_
-
----
+**Outcome** (2026-09-30, full evidence in `evals/reports/phase-2.md`). All acceptance criteria are met; AC7a is met under the recalibrated gate the user approved.
+- AC1–6, engine:
+  - Tests on final code: Windows 74/74 with Edge, and the browser and observation files 22/22 with Chrome. WSL2 73 pass + 1 Windows-only skip (portable Node 24.14, chrome-headless-shell 154). `check` clean.
+  - Two viewports in 3.8 s, 23 summary lines.
+  - Every seeded contrast, overflow and focus defect found on 7 fixtures, with 0 contrast false positives.
+  - No leftover processes or profiles after success, failure or interruption.
+- AC7b–c, behaviour: in 15 Build/Create runs, Nomi observed 15/15, opened captures 15/15 and made 30/30 valid evidence claims; the baseline observed 0/15. D9 is not triggered: no hook.
+- AC7d, preference: Nomi preferred in 14/18 blinded, position-swapped Codex `gpt-6-sol` votes (77.8%; gate ≥60%).
+- AC7e, competitor: Nomi preferred over the `frontend-design` arm in 72.2% of judgments. That skill activated in 0/9 of its runs, so this is not a comparison with its guidance.
+- AC7a, recalibrated with the user because the baseline was at ceiling (EVALUATION §5):
+  - Seeded repair within noise: 53/54 vs 54/54 over three fixture designs.
+  - No new S1: 27/27 runs per arm. Decoys intact: 27/27 per arm.
+  - Build/Create pages shipped with S1: 0/15 with Nomi vs 8/15 baseline (64 findings).
+- Cost: Create 1.7× baseline, Build +38%. Eval spend: $13.61 of $25.
+- Deviations from Astra's checkpoint, each with evidence in the report:
+  - Cleanup never fails a finished capture.
+  - `taskkill` by absolute path.
+  - No world-writable browser candidates.
+  - Viewports under 768 px emulated as phones.
+  - Overflow ignores up to 8 px of clipped optical bleed.
+  - Transparent-fill text contrast is reported as unknown.
+  - SKILL.md: run from the project folder; observe visual Tweak fixes whenever a browser exists.
+  - Harness: run-id grader over the eval root, deterministic evidence-claim grader, `regrade`, full-page judge renders, new S1 relative to the fixture, codex shim handling and normal Codex login for the judge, name-based contamination check, competitor arm.
+  - Seeded v1 and v2 archived; v3 is `web-seeded`.
+- For Phase 3:
+  - Skill activation on edits to existing pages was 11/27, against 15/15 on new pages. Include such prompts in the trigger suite before tuning the description.
+  - Agents sometimes run the CLI from the skill folder or the project's parent (U1).
+  - Codex drivers: normal login, auto-updates mid-run, npm shim spawned through Node on Windows.
+  - Competitor arms need proof of activation.
 
 ## Phase 3 — Multi-host packaging and verification
 
@@ -503,3 +529,4 @@ Recorded with triggers in ARCHITECTURE §14 (D1–D13). The only one-way door fo
 
 - 2026-09-27: initial plan from the master planning run (research, architecture, eight phases).
 - 2026-09-27: Phase 1 DONE. D13 reversed (DNA pointer in AGENTS.md/CLAUDE.md); skill description rewritten after the continuity eval; U11 added to INTEGRATIONS.
+- 2026-09-30: Phase 2 DONE after the review and completion run. The seeded gate was recalibrated (baseline at ceiling; user decision); golden preference 77.8%; competitor reported. Seeded v1 and v2 archived; seeded v3 is the current suite.

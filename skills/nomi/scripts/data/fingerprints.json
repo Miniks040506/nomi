@@ -1,0 +1,11 @@
+{
+  "updated": "2026-09-28",
+  "purpose": "Questions for critique; the brief and DNA can deliberately choose any match.",
+  "entries": [
+    {"id":"unlock","pattern":"\\bunlock (?:your |the )?(?:potential|possibilities)\\b","question":"Does this promise name an action or outcome specific to this product?"},
+    {"id":"elevate","pattern":"\\belevate (?:your |the )?experience\\b","question":"Can the visitor tell what changes for them without this stock promise?"},
+    {"id":"seamless","pattern":"\\bseamless(?:ly)?\\b","question":"Which observed transition earns this claim?"},
+    {"id":"reimagine","pattern":"\\b(?:reimagine|revolutionize|revolutionise)\\b","question":"Is the claimed change visible in the artifact or only in the copy?"},
+    {"id":"all-in-one","pattern":"\\ball.in.one (?:solution|platform)\\b","question":"Does the composition show the specific jobs this combines?"}
+  ]
+}

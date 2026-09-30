@@ -1,0 +1,20 @@
+{
+  "fixture": "web-tide-table",
+  "tier": "Build",
+  "target": "index.html",
+  "defects": [
+    { "id": "note", "code": "web.contrast", "node": "#note", "content": "Meet beside the east seawall" },
+    { "id": "readings", "code": "web.overflow", "node": "#readings", "content": "06:20 low" }
+  ],
+  "regex": [
+    {
+      "id": "decoy",
+      "file": "index.html",
+      "source": "renderedCopy",
+      "pattern": "STATION A7",
+      "expect": true,
+      "compliant": "STATION A7",
+      "violating": "Station a7"
+    }
+  ]
+}

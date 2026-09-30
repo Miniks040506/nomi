@@ -33,6 +33,7 @@ test-results/
 
 # Nomi runtime artifacts
 .nomi/runs/
+/.nomi/
 
 # Local prompts
 prompts/
@@ -43,6 +44,3 @@ evals/results/
 # Release artifacts
 *.zip
 *.tgz
-
-# tests
-tests/

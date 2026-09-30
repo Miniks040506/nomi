@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { splitFrontmatter, FrontmatterError } from './lib/frontmatter.mjs';
+import { splitFrontmatter } from './lib/frontmatter.mjs';
 import { findDna, checkDna, sliceDna, DOMAINS } from './lib/dna.mjs';
+import { observe, diffRuns } from './lib/capture.mjs';
+import { launchBrowser } from './lib/browser.mjs';
+import { readRun, summary } from './lib/runs.mjs';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
@@ -15,6 +18,12 @@ const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
   critique pack --task "<text>" [--evidence <file>]... [--domain <domain>] [--out <file>]
                                   write a self-contained brief for an independent critic
   doctor                          check Node, the skill folder and project DNA
+  observe <url|file|dir>           capture and measure (default: desktop and mobile)
+    --viewport 1440x900            repeat up to 4; --full --dark --reduced-motion
+    --wait 1800 --label "<text>"    bounded settling in ms (200–5000)
+  diff <runA> <runB>               metric deltas and a before/after sheet
+  probe print web                 runnable probe for a host browser tool
+  critique pack --task "…" --run <id>  include measured evidence
   version
 
 exit codes: 0 ok, 1 findings, 2 error`;
@@ -93,17 +102,19 @@ function critiquePack(opts) {
   if (!opts.task) fail('critique pack needs --task "<what was made, and for whom>"');
   checkDomain(opts.domain);
   const evidence = opts.evidence || [];
+  const observation = opts.run ? readRun(opts.run) : null;
+  if (observation) evidence.push(...observation.report.images);
   const missing = evidence.filter((e) => !fs.existsSync(path.resolve(e)));
   if (missing.length) fail(`evidence not found: ${missing.join(', ')}`);
 
   const dnaPath = findDna(process.cwd());
   const dna = dnaPath ? sliceDna(fs.readFileSync(dnaPath, 'utf8'), opts.domain) : 'No project DNA exists. Judge against the task and the existing product.';
   const module = opts.domain && path.join(SKILL_DIR, 'references', `${opts.domain}.md`);
-  const lens = module && fs.existsSync(module) ? `Also apply the "Critique lenses" section of ${module}.` : 'No domain module applies; use the rules below.';
+  const lens = module && fs.existsSync(module) ? /^## Critique lenses\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(fs.readFileSync(module,'utf8'))?.[1].trim() : 'No domain module applies; use the rules below.';
   const brief = read('assets', 'critic-brief.md')
     .replace('{{task}}', () => opts.task)
     .replace('{{dna}}', () => dna.trim())
-    .replace('{{evidence}}', () => (evidence.length ? evidence.map((e) => `- ${e}`).join('\n') : '- None supplied: report what could not be verified.'))
+    .replace('{{evidence}}', () => (evidence.length ? evidence.map((e) => `- ${e}`).join('\n') : '- None supplied: report what could not be verified.') + (observation ? `\n\n${summary(observation.report)}` : ''))
     .replace('{{lens}}', () => lens);
 
   if (!opts.out) {
@@ -116,22 +127,26 @@ function critiquePack(opts) {
   return 0;
 }
 
-function doctor(opts) {
+async function doctor(opts) {
   const nodeOk = Number(process.versions.node.split('.')[0]) >= 22;
   const dna = findDna(process.cwd());
   let writable = true;
   try { fs.accessSync(process.cwd(), fs.constants.W_OK); } catch { writable = false; }
-  const report = { node: { version: process.versions.node, ok: nodeOk }, skillDir: SKILL_DIR, dna, writable };
+  let browser;
+  try { const launched = await launchBrowser(); browser = { ok: true, version: launched.version.product, transport: launched.transport }; await launched.close(); }
+  catch (error) { browser = { ok: false, error: error.message }; }
+  const report = { node: { version: process.versions.node, ok: nodeOk }, skillDir: SKILL_DIR, dna, writable, browser };
   const text = [
     `node   ${process.versions.node} ${nodeOk ? 'ok' : 'too old: need 22 or newer'}`,
     `skill  ${SKILL_DIR}`,
     `dna    ${dna ? rel(dna) : 'none yet (Create-tier work starts with: nomi dna init)'}`,
     `write  ${writable ? 'ok' : `cannot write to ${process.cwd()}`}`,
+    `browser ${browser.ok ? browser.version : browser.error}`,
   ].join('\n');
   return print(opts, report, text, nodeOk ? 0 : 1);
 }
 
-function run(argv) {
+async function run(argv) {
   const { values: opts, positionals: [cmd, sub, file] } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -143,11 +158,27 @@ function run(argv) {
       evidence: { type: 'string', multiple: true },
       domain: { type: 'string' },
       out: { type: 'string' },
+      run: { type: 'string' },
+      viewport: { type: 'string', multiple: true },
+      full: { type: 'boolean' },
+      dark: { type: 'boolean' },
+      'reduced-motion': { type: 'boolean' },
+      wait: { type: 'string' },
+      label: { type: 'string' },
     },
   });
   if (!cmd || cmd === 'help' || opts.help) return print({}, null, HELP);
   if (cmd === 'version') return print(opts, { version: version() }, `nomi ${version()}`);
   if (cmd === 'doctor') return doctor(opts);
+  if (cmd === 'observe' || cmd === 'diff') {
+    const result = cmd === 'observe' ? await observe(sub, opts) : await diffRuns(sub, file, opts);
+    return print(opts, result.report, summary(result.report).trim(), result.report.findings.length ? 1 : 0);
+  }
+  if (cmd === 'probe' && sub === 'print') {
+    if (file !== 'web') fail('unknown probe; use: nomi probe print web');
+    process.stdout.write(read('scripts', 'probes', 'web-census.js'));
+    return 0;
+  }
   if (cmd === 'dna' && sub === 'init') return dnaInit();
   if (cmd === 'dna' && sub === 'check') return dnaCheck(opts, file);
   if (cmd === 'dna' && sub === 'show') return dnaShow(opts, file);
@@ -156,10 +187,8 @@ function run(argv) {
 }
 
 try {
-  process.exitCode = run(process.argv.slice(2));
+  process.exitCode = await run(process.argv.slice(2));
 } catch (err) {
-  const expected = err instanceof UsageError || err instanceof FrontmatterError || String(err.code).startsWith('ERR_PARSE_ARGS_');
-  if (!expected) throw err;
-  console.error(`nomi: ${err.message}`);
+  console.error(`nomi: ${err.message.replace(/\r?\n/g, ' ')}`);
   process.exitCode = 2;
 }

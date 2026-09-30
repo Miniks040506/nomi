@@ -28,7 +28,7 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 | Suite | Phase | Kind | Cases | Primary metric | Hosts |
 |---|---|---|---|---|---|
 | `core` | 1 | L2 | Discriminating: build-continuity (a DNA-only rule), create-writes-dna, vague-brief-translated (judge on the visual system). Guards that the baseline already passes: tweak-respects-dna, no-trigger-backend, brief-style-wins | With/without score per case; guards must not regress | Claude Code |
-| `web-seeded` | 2 | L3 | 3 fixtures: contrast/overflow/type-scale chaos; default SaaS-card kit; invisible focus + filler copy | Seeded S1 defects fixed, new S1 introduced | Claude Code; Codex from 3 |
+| `web-seeded` | 2 | L3 | Build requests on three existing pages whose S1 defects are render-only and not named by the prompt: tide leads (dusk-panel contrast, mobile-only strip overflow), reading talks (night-palette contrast, focus reset), bench prices (white-on-amber pill, `nowrap` ticket overflow); uppercase-code, masthead and square-card decoys. Archived: `web-seeded-v1` (defects in plain sight) and `web-seeded-v2` (render-only defects, category named in the prompt) both hit the baseline ceiling | Seeded S1 defects fixed, new S1 introduced | Claude Code; Codex from 3 |
 | `web-golden` | 2 | L3 | 3 contrasting briefs | Blinded pairwise preference | Claude Code; Codex from 3 |
 | `web-adherence` | 2 | L2 | 2 Build/Create tasks | Observe-before-claim, citation validity | Claude Code |
 | `trigger` | 3 | L2 | 15 should-trigger, 15 should-not prompts | Recall, false-trigger rate | Every automatable host |
@@ -50,8 +50,8 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 
 **Transcript**
 - Activation signal per host (driver-specific).
-- Observe-before-claim: an observe command precedes the final claim about visual quality.
-- Citation validity: every artifact the critique cites exists in `.nomi/runs/`, quoted metric values match `report.json`, and each cited image was actually opened before it was described.
+- Observe-before-claim: an observe command succeeded, meaning its output names a run whose `report.json` exists anywhere in the eval's temp root (agents run the CLI from the project, its parent or the skill folder). "Looked" additionally requires a capture to have been opened.
+- Evidence-claim validity (the citation metric): agents cite evidence in prose, not paths. Each final-report sentence that says a screenshot or capture was opened, viewed or shows something must be backed by an opened image of each viewport it names. Each "N findings" must match a report the session produced. Sentences that disclaim ("did not open") are not claims.
 - Tier behavior: no DNA write, direction note or critic for Tweak prompts.
 
 **Judge**
@@ -71,9 +71,20 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 - Regexes for Never items must match violations, not mentions: `border-radius: 0` enforces "no rounded corners". Test every grader pattern against compliant and violating snippets before a run.
 - Judge the visual system, not the copy: specific copy on a default-cluster page passed a lenient rubric. Design rubrics use a stronger judge than the default one.
 
+**Grader lessons from Phase 2**
+- A seeded defect only measures observation if code reading alone misses it. Literal values in plain sight (`color:#aaa`, `width:1400px`, `outline:none`) and prompts that name the defect class ("for phones and keyboards") let the baseline fix everything (v1 and v2: 36/36 per arm).
+- Find evidence by run id, not by a fixed folder. A path-bound grader scored 5 of 9 real observations as missing.
+- "New S1" is relative to the untouched fixture's own findings; a pre-existing unlisted finding is not new.
+- Judges see full-page desktop and phone renders. Briefs put required content below the first screen.
+
 ## 5. Metrics and gates
 
 Initial gates; recalibrate after the first baseline run and record any change here with the reason.
+
+Recalibration 2026-09-30 (user decision, Phase 2):
+- The seeded gate "with Nomi fixes more than baseline on ≥2 of 3 fixtures" had no headroom. The baseline fixed 54/54 seeded S1 defects across three fixture designs (plain-sight, render-only, and unmentioned in Build requests).
+- Seeded repair now guards against regression. The discriminating outcome is how often Build/Create pages ship with measured S1 findings.
+- The single Nomi-arm miss (53/54) came from a run where the skill had not loaded.
 
 | Metric | Phase gate | Release gate |
 |---|---|---|
@@ -81,7 +92,8 @@ Initial gates; recalibrate after the first baseline run and record any change he
 | Observe-before-claim (with Nomi, Build/Create) | ≥80% (Phase 2) | ≥90% |
 | Citation validity | ≥95% | ≥95% |
 | Tweak over-processing (direction note, DNA write or critic on a Tweak) | ≤20% | ≤10% |
-| Seeded defects | With Nomi fixes more seeded S1 defects than baseline on ≥2 of 3 fixtures; no new S1 in ≥90% of runs | Same, in every domain |
+| Seeded defects | Recalibrated 2026-09-30, see below. Seeded repair within noise of baseline (at most 1 defect below it per fixture over 3 runs); no new S1 in ≥90% of runs; decoys intact | More fixed than baseline where the baseline leaves headroom; otherwise the Phase 2 rule |
+| Shipped S1 (Build/Create pages, harness re-render) | Fewer runs with Nomi ship a page with S1 findings than baseline | Same |
 | Blinded preference vs vanilla host | ≥60% | ≥65% |
 | Continuity | DNA or canon violations in session 2 below baseline in ≥2 of 3 cases | Same |
 | Diversity | Style dispersion across briefs ≥ baseline; no single fingerprint cluster above 40% of Nomi outputs | Same |
@@ -96,9 +108,19 @@ Initial gates; recalibrate after the first baseline run and record any change he
 - **Baseline hygiene**: the baseline arm must show zero Nomi activation; each result records host version, model, and the list of installed skills and plugins, because other installed skills (for example a design skill) change the baseline.
 - **Competitor baseline** (optional, reported, never gated): web suites may add an arm with Anthropic's `frontend-design` skill so Nomi's value over the strongest common alternative is visible.
 
+Phase 2 runner command (native Windows, shell access through the headless CLI rather than `claude plugin eval`):
+```text
+node evals/harness/runner.mjs --suite web-seeded,web-golden,web-adherence --model claude-sonnet-5-5 --arm both --runs 3 --cap 1
+node evals/harness/runner.mjs --suite judge --model claude-sonnet-5-5
+node evals/harness/runner.mjs --suite regrade --model claude-sonnet-5-5
+node evals/harness/runner.mjs --suite web-golden --arm competitor --runs 3 --cap 1 --model claude-sonnet-5-5
+node evals/harness/runner.mjs --suite judge --versus competitor --model claude-sonnet-5-5
+```
+`judge` renders both arms full-page at 1440 and 390 px (cached under `judge-renders/`) and asks a Codex model (`gpt-6-sol`, low reasoning, normal Codex login) for a blinded, position-swapped vote. The `competitor` arm loads Anthropic's `frontend-design` plugin (`NOMI_COMPETITOR_PLUGIN` overrides the path); report its activation, because an installed but unused skill is not a comparison with its guidance. `regrade` re-scores saved transcripts and workspaces after a grader change without model calls; it needs the temp workspaces the results point to. `--out` defaults to `evals/results/phase-2`. Keep one runner active against its shared ledger. Existing successful runs are reused; errors stop the suite and require inspection plus `--retry-errors`. Unknown costs block further spending. All pilots and retries count toward $25. The `--cap` is per Claude run; judge token costs are conservative estimates and must be reported separately. Do not compare a baseline with disabled native skills against an arm that retains them.
+
 ## 7. Case format
 
-Cases use the `claude plugin eval` layout so one set of files serves both runners:
+Cases share a directory layout. Core cases use `claude plugin eval`; the shell-driven Web cases use the Nomi runner:
 ```
 evals/cases/<suite>/<case>/
 ├── prompt.md        frontmatter: max_turns, allowed_tools, tags · body: the user prompt
@@ -107,7 +129,7 @@ evals/cases/<suite>/<case>/
 └── nomi.json        Nomi-only: tier expectation, seeded defects + decoys, deterministic graders, judge rubric id
 evals/fixtures/<name>/   shared fixture projects
 ```
-`claude plugin eval` ignores `nomi.json`; the Nomi runner reads everything.
+`claude plugin eval` ignores `nomi.json`. The Nomi runner reads `prompt.md` and `nomi.json` (fixture directory, target, tier, defects and tested regex rules). It does not interpret `case.yaml` shell scaffolds or Markdown graders; Web cases need neither. Avoid claiming interchangeable runner support. Both arms receive a copy of the same fixture, with no repository instructions.
 
 ## 8. Cost and cadence
 

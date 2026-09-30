@@ -1,0 +1,19 @@
+{
+  "fixture": "web-bike-bench",
+  "tier": "Build",
+  "target": "index.html",
+  "defects": [
+    { "id": "status", "code": "web.contrast", "node": "#status", "content": "Ready for collection" },
+    { "id": "ref", "code": "web.overflow", "node": "#ref", "content": "BAY-3" }
+  ],
+  "regex": [
+    {
+      "id": "decoy",
+      "file": "index.html",
+      "pattern": "border-radius:\\s*0(?:px)?\\s*[;}]",
+      "expect": true,
+      "compliant": ".card{border-radius:0;}",
+      "violating": ".card{border-radius:4px;}"
+    }
+  ]
+}

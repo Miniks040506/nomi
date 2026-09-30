@@ -1,6 +1,6 @@
 # Nomi Integrations
 
-How Nomi reaches each target host. Facts below were checked against official documentation on **2026-09-27** (status `D`). Nothing is claimed as working until it is verified locally in Phase 3 (status `L`, with version, date and evidence). Tools read the same facts from `adapters/hosts.json`; `tools/check.mjs` keeps the two in sync.
+How Nomi reaches each target host. Host documentation below was checked on **2026-09-27** (status `D`). Local Phase 1/2 evidence is recorded separately below; the complete host matrix is Phase 3 work. `adapters/hosts.json` and host verification tooling are planned, not implemented.
 
 ## 1. Summary
 
@@ -23,6 +23,20 @@ How Nomi reaches each target host. Facts below were checked against official doc
 | Hermes Agent | `.agents/skills/` or `.hermes/skills/` (git repo + `hermes skills trust`) | `~/.hermes/skills/`; `skills.external_dirs` in `~/.hermes/config.yaml` | Agent Plugins portable package (disabled until enabled) or `hermes skills install` | `hermes chat -q …`; `hermes -z` | ? | not installed |
 
 Status legend: `D` documented (checked 2026-09-27) · `L` verified locally (version, date, evidence) · `?` unknown · `✗` known not to work.
+
+### Phase 2 local evidence (2026-09-29)
+
+| Component | Tested version / environment | Evidence and scope |
+|---|---|---|
+| Windows browser engine | Node 24.14.0; Microsoft Edge 154.0.4258.37; Google Chrome 154.0.8037.58 | Real CDP capture, census, directory/file/URL targets, diff, failure and interruption cleanup in `tests/browser.test.mjs`; WebSocket transport |
+| Linux browser engine | WSL2 Ubuntu 26.04; portable Node 24.14.0 linux-x64; Chrome Headless Shell 154.0.8037.57 via `NOMI_BROWSER` | Same test suite with pipe transport. Portable binaries plus NSS/NSPR/ALSA libraries fetched with `apt-get download` and unpacked with `dpkg -x` under `/tmp`; no root, no system installation |
+| Claude Code local plugin | 2.1.284; `claude-sonnet-5-5`, low effort | Fresh temp workspace and config per run; `--plugin-dir` lists `nomi:nomi`. Discovery is verified; activation, script use and image opening rates are reported separately in the Phase 2 report |
+| Codex CLI as eval judge | codex-cli 0.154.0, auto-updated to 0.159.1 during the run | The npm `.cmd` shim cannot be spawned without a shell, so the harness runs its `codex.js` with Node. `--image` takes several values, so the prompt follows `--`. A copied access token without its refresh token was rejected (401), so the judge uses the normal Codex login, with `--ignore-user-config --ignore-rules --ephemeral` and a read-only sandbox |
+| Restricted desktop sandbox | Local browser launch may be blocked | Actionable failure and `probe print web` fallback. This is not visual verification and does not establish Codex host compatibility |
+
+Final checkpoint (2026-09-30): Windows `npm test` 74/74 with Edge, and the browser and observation files pass 22/22 with Chrome; WSL2 73 pass plus 1 Windows-only skip; `npm run check` clean on both; no leftover profiles or browser processes. WSL shuts down when idle and clears `/tmp`, so set up the portable toolchain and run the tests in one WSL session. Run WSL tests with the Linux `node` first on PATH; otherwise WSL interop silently runs Windows npm and node. Final results and costs live in `evals/reports/phase-2.md`. macOS and the other host integrations remain unverified. Browser integration is independent of host packaging.
+
+The development harness passes an unexpired Claude access token to a fresh config directory. It never copies a refresh token: copying one caused refresh rotation to invalidate the original login during early experiments. Both arms retain identical built-in skills; only the with arm adds Nomi. The repository's `AGENTS.md` and `CLAUDE.md` are not copied into either workspace.
 
 ## 3. Per-host notes
 
@@ -85,7 +99,7 @@ Status legend: `D` documented (checked 2026-09-27) · `L` verified locally (vers
 | Gemini CLI extension | Gemini CLI | Root `gemini-extension.json`; `skills/` is bundled |
 | Third-party installer | All eight | `npx skills add <owner>/<repo>` (vercel-labs/skills) works as a fallback, but some of its target paths lag the hosts' own docs (for example Antigravity's global path), so it is not the primary channel |
 
-All manifests share one `name` (`nomi`) and one `version`; `tools/check.mjs` fails on mismatches.
+Phase 3 will add the remaining manifests and installer. Today only `.claude-plugin/plugin.json` ships; `tools/check.mjs` checks its name/version against the skill.
 
 ## 5. Rules for the canonical skill (normative)
 
@@ -101,7 +115,7 @@ All manifests share one `name` (`nomi`) and one `version`; `tools/check.mjs` fai
 
 | ID | Question | How to resolve |
 |---|---|---|
-| U1 | Does every host tell the model the skill's directory so `node <skill-dir>/scripts/nomi.mjs` resolves? Claude Code does ("base directory"); others unverified | Headless run per host asking the agent to run `nomi doctor` |
+| U1 | Does every host tell the model the skill's directory so `node <skill-dir>/scripts/nomi.mjs` resolves? Claude Code does ("base directory"); others unverified. Phase 2: Claude Code agents resolved it every time but sometimes ran it from the skill folder or the project's parent, so runs landed outside the project | Headless run per host asking the agent to run `nomi doctor` |
 | U2 | Cursor and OpenCode read both `.agents/skills` and `.claude/skills`; a two-folder install may list `nomi` twice | Install both, inspect the listing; the installer writes `.claude/skills` only when Claude Code is a target |
 | U3 | Codex's default sandbox may block launching a browser or reaching localhost | Run `nomi observe` through `codex exec`; document the needed sandbox setting or the `probe print` fallback |
 | U4 | Gemini CLI asks consent before `activate_skill`; behavior in `-p` runs is undocumented | Headless run with and without an approval-mode flag |

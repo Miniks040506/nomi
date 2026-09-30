@@ -13,7 +13,7 @@ Creative judgment for work people experience. If the task changes nothing a pers
 
 | Tier | When | Do |
 |---|---|---|
-| Tweak | Small change inside an existing direction: copy, one colour, spacing, a value, a visual bug | Respect the DNA (above all Never), make the change, done. No direction note, no critique. |
+| Tweak | Small change inside an existing direction: copy, one colour, spacing, a value, a visual bug | Respect the DNA (above all Never), make the change. Observe a visual fix (step 4) whenever a browser is available; "not visually verified" is only for when observing is impossible. No direction note, no critique. |
 | Build | New component, page, section, scene, mechanic or content inside a direction | Direction note, build, look, critique, at most 2 refinement rounds, record decisions |
 | Create | New product, site, game or world; redesign; "make it distinctive"; or no DNA and this work defines the look | Direction protocol, write DNA, build, look, independent critique, at most 3 rounds, record |
 
@@ -38,7 +38,9 @@ Create tier: follow `references/direction.md`, then write `.nomi/dna.md` from `a
 
 ## 4. Look, critique, refine
 
-- Look at the result before judging it: render and screenshot it if your environment can, and open the image. If you cannot, say "not visually verified".
+- For web work, load `references/web.md`. Run `node <skill-dir>/scripts/nomi.mjs observe <url-or-file>` and open the printed images before judging; measure again after fixes. Exit 1 means findings, not capture failure.
+- If browser launch fails, run `probe print web` through a host browser tool and open its screenshots. Without browser access, say "not visually verified" and cite code only.
+- For other domains, render and open evidence if possible; otherwise say "not visually verified".
 - Critique with `references/critique.md`: at most 5 ranked issues, each tied to evidence.
 - Fix in severity order and look again. Stop when no S1 or S2 remains or the round budget is spent; report what remains.
 
@@ -48,9 +50,13 @@ Append new decisions to the DNA's Decisions section: date · domain · decision,
 
 ## Scripts (optional)
 
-Run `node <skill-dir>/scripts/nomi.mjs <command>`, where `<skill-dir>` is the folder containing this file:
-`dna init`, `dna check`, `dna show --for <domain>`, `critique pack --task "…" --evidence <file>`, `doctor`.
+Run `node <skill-dir>/scripts/nomi.mjs <command>` from the project folder (runs are saved in its `.nomi/runs/`), where `<skill-dir>` is the folder containing this file:
+`dna init`, `dna check`, `dna show --for <domain>`, `observe <url-or-file>`, `diff <before-id> <after-id>`, `probe print web`, `critique pack --task "…" --run <id>`, `doctor`.
 Without Node: copy `assets/dna.md` to `.nomi/dna.md` by hand and fill it in.
+
+## Modules (load only what this task needs)
+
+- `references/web.md`: rendered pages, layout, typography, accessibility findings and refinement.
 
 ## Honesty
 

@@ -53,6 +53,10 @@ export function checkSkill(dir) {
     const count = lines.length - (content.endsWith('\n') ? 1 : 0);
     const budget = rel === 'SKILL.md' ? 150 : /^references\/.*\.md$/.test(rel) ? 200 : /^assets\/.*\.md$/.test(rel) ? 120 : null;
     if (budget && count > budget) add(file, budget + 1, 'budget.lines', `${count} lines (budget ${budget})`);
+    if (/^references\/(web|motion|3d|game|world)\.md$/.test(rel)) {
+      const headings = [...content.matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
+      if (headings.join('|') !== 'Decide|Traps|Instrument|Observe|Critique lenses|Moves') add(file, 1, 'module.sections', 'domain module needs exactly Decide, Traps, Instrument, Observe, Critique lenses, Moves in that order');
+    }
 
     const isDoc = rel.endsWith('.md');
     const checksLinks = rel === 'SKILL.md' || /^references\/.*\.md$/.test(rel);
