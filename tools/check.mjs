@@ -1,10 +1,11 @@
-// Static gate for the canonical skill: Agent Skills spec rules, context budgets,
+// Static gate for the Nomi skills (core plus domain skills): Agent Skills spec rules, context budgets,
 // skill-relative links and vendor neutrality (docs/ARCHITECTURE.md §4 and §12,
 // docs/INTEGRATIONS.md §5). Usage: node tools/check.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { splitFrontmatter } from '../skills/nomi/scripts/lib/frontmatter.mjs';
+import { DOMAINS } from '../skills/nomi/scripts/lib/dna.mjs';
 
 const ALLOWED_KEYS = ['name', 'description', 'license', 'compatibility', 'metadata'];
 const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -13,6 +14,10 @@ const TEXT_FILES = /\.(md|mjs|js|json|txt|ya?ml)$/;
 const HOST_SYNTAX = /\$\{CLAUDE_|\$ARGUMENTS|CLAUDE_PLUGIN_/g;
 const HOST_WORDS = /Claude Code|Codex|Cursor|OpenCode|Gemini|Antigravity|OpenClaw|Hermes|\b(?:Bash|Read|Write|Edit|Task|Skill|Agent) tool\b|activate_skill|skill_view|skills_list|TodoWrite|AskUserQuestion/g;
 const SKILL_PATH = /(?:\]\(|`|<skill-dir>\/)((?:references|assets|scripts)\/[^)`\s#]+)/g;
+// Domain skills reach the shared core as a sibling folder: <core> = <skill-dir>/../nomi.
+const SIBLING_PATH = /<skill-dir>\/(\.\.\/[^)`\s#]+)|<core>\/([^)`\s#]+)/g;
+const DOMAIN_SKILL = new RegExp(`^nomi-(${Object.keys(DOMAINS).join('|')})$`);
+const MODULE_SECTIONS = 'Decide|Traps|Instrument|Observe|Critique lenses|Moves';
 
 export function checkSkill(dir) {
   const findings = [];
@@ -53,9 +58,10 @@ export function checkSkill(dir) {
     const count = lines.length - (content.endsWith('\n') ? 1 : 0);
     const budget = rel === 'SKILL.md' ? 150 : /^references\/.*\.md$/.test(rel) ? 200 : /^assets\/.*\.md$/.test(rel) ? 120 : null;
     if (budget && count > budget) add(file, budget + 1, 'budget.lines', `${count} lines (budget ${budget})`);
-    if (/^references\/(web|motion|3d|game|world)\.md$/.test(rel)) {
+    // A domain skill is its module: an entry without the full contract would expose an unfinished domain.
+    if (rel === 'SKILL.md' && DOMAIN_SKILL.test(path.basename(dir))) {
       const headings = [...content.matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
-      if (headings.join('|') !== 'Decide|Traps|Instrument|Observe|Critique lenses|Moves') add(file, 1, 'module.sections', 'domain module needs exactly Decide, Traps, Instrument, Observe, Critique lenses, Moves in that order');
+      if (headings.join('|') !== MODULE_SECTIONS) add(file, 1, 'module.sections', 'domain skill needs exactly Decide, Traps, Instrument, Observe, Critique lenses, Moves in that order');
     }
 
     const isDoc = rel.endsWith('.md');
@@ -67,6 +73,10 @@ export function checkSkill(dir) {
         for (const m of line.matchAll(SKILL_PATH)) {
           if (!fs.existsSync(path.join(dir, m[1]))) add(file, i + 1, 'links.missing', `${m[1]} does not exist`);
         }
+        for (const m of line.matchAll(SIBLING_PATH)) {
+          const target = m[1] ? path.join(dir, m[1]) : path.join(dir, '..', 'nomi', m[2]);
+          if (!fs.existsSync(target)) add(file, i + 1, 'links.missing', `${m[0]} does not exist`);
+        }
       }
     });
   }
@@ -74,16 +84,25 @@ export function checkSkill(dir) {
 }
 
 export function checkRepo(root) {
-  const skillDir = path.join(root, 'skills', 'nomi');
-  const findings = checkSkill(skillDir);
+  const skillsDir = path.join(root, 'skills');
+  const findings = [];
+  const folders = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
+  const skills = folders.filter((n) => n === 'nomi' || DOMAIN_SKILL.test(n));
+  if (!folders.includes('nomi')) findings.push({ file: skillsDir, line: 1, code: 'repo.skills', message: 'the shared core skills/nomi is missing' });
+  for (const name of folders.filter((n) => !skills.includes(n))) {
+    findings.push({ file: path.join(skillsDir, name), line: 1, code: 'repo.skills', message: `"${name}" is neither the core "nomi" nor nomi-<${Object.keys(DOMAINS).join('|')}>` });
+  }
+  for (const name of skills) findings.push(...checkSkill(path.join(skillsDir, name)));
   const manifest = path.join(root, '.claude-plugin', 'plugin.json');
   if (fs.existsSync(manifest)) {
     const plugin = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-    let skill = null;
-    try { skill = splitFrontmatter(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8')).data; } catch { /* reported by checkSkill */ }
-    const version = skill && skill.metadata && skill.metadata.version;
-    if (plugin.name !== 'nomi' || plugin.version !== version) {
-      findings.push({ file: manifest, line: 1, code: 'manifest.mismatch', message: `plugin.json name/version (${plugin.name} ${plugin.version}) must be "nomi" and the skill's metadata.version (${version})` });
+    for (const name of skills) {
+      let skill = null;
+      try { skill = splitFrontmatter(fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8')).data; } catch { /* reported by checkSkill */ }
+      const version = skill && skill.metadata && skill.metadata.version;
+      if (plugin.name !== 'nomi' || plugin.version !== version) {
+        findings.push({ file: manifest, line: 1, code: 'manifest.mismatch', message: `plugin.json name/version (${plugin.name} ${plugin.version}) must be "nomi" and match ${name}'s metadata.version (${version})` });
+      }
     }
   }
   return findings;

@@ -1,13 +1,13 @@
 ---
 name: nomi
-description: "Use when adding or changing anything people see, feel or play: pages, sections, components, forms and styling, animation and motion, 3D or WebGL scenes, game mechanics and feel, fictional worlds and lore. Also use when output looks generic or AI-made, when asked to review or polish such work, or in any project that has a .nomi/ folder."
+description: "Use for creative work people see, hear, feel or play beyond web pages: animation and motion, 3D or WebGL scenes, game mechanics and feel, fictional worlds and lore; to set or change a project's creative direction or .nomi/dna.md; or when output looks generic or AI-made. Shared core of Nomi; web pages and UI have their own Nomi web skill."
 compatibility: Optional Node.js 22+ for scripts. Without it the process still applies; results are marked unverified.
 metadata:
   version: "0.1.0"
 ---
 # Nomi
 
-Creative judgment for work people experience. If the task changes nothing a person sees, hears, feels or reads, stop here.
+Creative judgment for work people experience, and the shared core every Nomi domain skill uses. If the task changes nothing a person sees, hears, feels or reads, stop here.
 
 ## 1. Choose the tier (state it in one line)
 
@@ -38,9 +38,9 @@ Create tier: follow `references/direction.md`, then write `.nomi/dna.md` from `a
 
 ## 4. Look, critique, refine
 
-- For web work, load `references/web.md`. Run `node <skill-dir>/scripts/nomi.mjs observe <url-or-file>` and open the printed images before judging; measure again after fixes. Exit 1 means findings, not capture failure.
-- If browser launch fails, run `probe print web` through a host browser tool and open its screenshots. Without browser access, say "not visually verified" and cite code only.
-- For other domains, render and open evidence if possible; otherwise say "not visually verified".
+- Web pages and UI: follow the web skill, `<skill-dir>/../nomi-web/SKILL.md`, for capture (`observe`), lenses and moves. Open the printed images before judging and measure again after fixes.
+- If a capture fails, run the domain's `probe print` through a host browser tool and open its screenshots. Without browser access, say "not visually verified" and cite code only.
+- Other domains: render and open evidence if possible; otherwise say "not visually verified".
 - Critique with `references/critique.md`: at most 5 ranked issues, each tied to evidence.
 - Fix in severity order and look again. Stop when no S1 or S2 remains or the round budget is spent; report what remains.
 
@@ -54,9 +54,11 @@ Run `node <skill-dir>/scripts/nomi.mjs <command>` from the project folder (runs 
 `dna init`, `dna check`, `dna show --for <domain>`, `observe <url-or-file>`, `diff <before-id> <after-id>`, `probe print web`, `critique pack --task "…" --run <id>`, `doctor`.
 Without Node: copy `assets/dna.md` to `.nomi/dna.md` by hand and fill it in.
 
-## Modules (load only what this task needs)
+## Domain skills (load only what the task needs)
 
-- `references/web.md`: rendered pages, layout, typography, accessibility findings and refinement.
+Each is a sibling folder of this one and uses this core.
+- `<skill-dir>/../nomi-web/SKILL.md`: web pages and UI: rendered capture, accessibility findings, web lenses and moves.
+- Motion, 3D, game and world have no domain skill yet: apply this loop and critique, and mark visual claims not visually verified.
 
 ## Honesty
 

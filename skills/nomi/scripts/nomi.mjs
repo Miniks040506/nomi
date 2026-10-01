@@ -32,6 +32,8 @@ class UsageError extends Error {}
 const fail = (message) => { throw new UsageError(message); };
 const rel = (p) => path.relative(process.cwd(), p) || '.';
 const read = (...parts) => fs.readFileSync(path.join(SKILL_DIR, ...parts), 'utf8');
+// Domain skills are sibling folders of this core: nomi-web, later nomi-motion and so on.
+const domainSkill = (domain) => path.join(SKILL_DIR, '..', `nomi-${domain}`, 'SKILL.md');
 
 function print(opts, json, text, code = 0) {
   console.log(opts.json ? JSON.stringify(json, null, 2) : text);
@@ -109,7 +111,7 @@ function critiquePack(opts) {
 
   const dnaPath = findDna(process.cwd());
   const dna = dnaPath ? sliceDna(fs.readFileSync(dnaPath, 'utf8'), opts.domain) : 'No project DNA exists. Judge against the task and the existing product.';
-  const module = opts.domain && path.join(SKILL_DIR, 'references', `${opts.domain}.md`);
+  const module = opts.domain && domainSkill(opts.domain);
   const lens = module && fs.existsSync(module) ? /^## Critique lenses\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(fs.readFileSync(module,'utf8'))?.[1].trim() : 'No domain module applies; use the rules below.';
   const brief = read('assets', 'critic-brief.md')
     .replace('{{task}}', () => opts.task)
@@ -135,10 +137,12 @@ async function doctor(opts) {
   let browser;
   try { const launched = await launchBrowser(); browser = { ok: true, version: launched.version.product, transport: launched.transport }; await launched.close(); }
   catch (error) { browser = { ok: false, error: error.message }; }
-  const report = { node: { version: process.versions.node, ok: nodeOk }, skillDir: SKILL_DIR, dna, writable, browser };
+  const domains = Object.keys(DOMAINS).filter((d) => fs.existsSync(domainSkill(d)));
+  const report = { node: { version: process.versions.node, ok: nodeOk }, skillDir: SKILL_DIR, domains, dna, writable, browser };
   const text = [
     `node   ${process.versions.node} ${nodeOk ? 'ok' : 'too old: need 22 or newer'}`,
     `skill  ${SKILL_DIR}`,
+    `domains ${domains.length ? domains.join(', ') : 'none found next to the core'}`,
     `dna    ${dna ? rel(dna) : 'none yet (Create-tier work starts with: nomi dna init)'}`,
     `write  ${writable ? 'ok' : `cannot write to ${process.cwd()}`}`,
     `browser ${browser.ok ? browser.version : browser.error}`,

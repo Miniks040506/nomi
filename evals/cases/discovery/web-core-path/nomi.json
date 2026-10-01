@@ -1,0 +1,5 @@
+{
+  "fixture": "web-bike-bench",
+  "tier": "Tweak",
+  "target": "index.html"
+}

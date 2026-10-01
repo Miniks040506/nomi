@@ -86,7 +86,7 @@ export function transcriptGrade(events,root) {
   const looked=opened.filter(p=>reports.some(r=>p.startsWith(r.dir+path.sep)));
   const final=events.filter(e=>e.type==='assistant').at(-1)?.message?.content?.filter(c=>c.type==='text').map(c=>c.text).join('\n')||'';
   const claims=evidenceClaims(final,opened,reports);
-  return {activation:calls.some(c=>c.name==='Skill' && /nomi/.test(c.input?.skill||'')),observed:reports.length>0,looked:looked.length>0,opened:opened.length,claims:claims.length,validClaims:claims.filter(c=>c.valid).length,invalidClaims:claims.filter(c=>!c.valid).map(c=>c.text)};
+  return {activation:calls.some(c=>c.name==='Skill' && /nomi/.test(c.input?.skill||'')),skills:calls.filter(c=>c.name==='Skill').map(c=>c.input?.skill),firstAction:calls[0]?.name||null,coreRead:calls.some(c=>c.name==='Read'&&/[\\/]nomi[\\/]SKILL\.md$/.test(c.input?.file_path||'')&&successes.has(c.id)),dnaRead:calls.some(c=>c.name==='Read'&&/[\\/]\.nomi[\\/]dna\.md$/.test(c.input?.file_path||'')),observed:reports.length>0,looked:looked.length>0,opened:opened.length,claims:claims.length,validClaims:claims.filter(c=>c.valid).length,invalidClaims:claims.filter(c=>!c.valid).map(c=>c.text)};
 }
 export function pairwiseScore(first,swapped) {
   if([first,swapped].some(v=>!['A','B','tie'].includes(v)))throw new Error('judge vote must be A, B or tie');
@@ -179,8 +179,8 @@ export function invoke(command,args,{cwd,env,timeout=300000,output}) {
     child.on('close',code=>finish({stdout,stderr,code,timedOut}));
   });
 }
-export function hostArgs(prompt,model,cap,plugin) {
-  const args=['-p',prompt,'--model',model,'--effort','low','--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--allowedTools','Read,Write,Edit,Glob,Grep,Bash,PowerShell,Skill','--max-budget-usd',String(cap),'--max-turns','32'];
+export function hostArgs(prompt,model,cap,plugin,effort='low',settingSources='') {
+  const args=['-p',prompt,'--model',model,'--effort',effort,'--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources',settingSources,'--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--allowedTools','Read,Write,Edit,Glob,Grep,Bash,PowerShell,Skill','--max-budget-usd',String(cap),'--max-turns','32'];
   if(plugin)args.push('--plugin-dir',plugin);
   return args;
 }
@@ -195,7 +195,7 @@ async function originalS1(config) {
   }
   return ORIGINAL.get(config.fixture);
 }
-async function runOne(caseDir,arm,cap,output,model) {
+async function runOne(caseDir,arm,cap,output,model,{pluginRoot=ROOT,effort='low',install='plugin'}={}) {
   const {prompt,config}=readCase(caseDir);
   const authentication=loadAuth();
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-eval-'));
@@ -207,20 +207,23 @@ async function runOne(caseDir,arm,cap,output,model) {
   if(config.fixture) fs.cpSync(path.join(ROOT,'evals','fixtures',config.fixture),workspace,{recursive:true});
   const plugin=path.join(temp,'plugin');
   if(arm==='with') {
-    fs.mkdirSync(plugin);fs.cpSync(path.join(ROOT,'skills'),path.join(plugin,'skills'),{recursive:true});
-    fs.cpSync(path.join(ROOT,'.claude-plugin'),path.join(plugin,'.claude-plugin'),{recursive:true});
+    fs.mkdirSync(plugin);fs.cpSync(path.join(pluginRoot,'skills'),path.join(plugin,'skills'),{recursive:true});
+    fs.cpSync(path.join(pluginRoot,'.claude-plugin'),path.join(plugin,'.claude-plugin'),{recursive:true});
   }
   // Competitor arm (reported, never gated): Anthropic's frontend-design plugin instead of Nomi.
   if(arm==='competitor') fs.cpSync(process.env.NOMI_COMPETITOR_PLUGIN||path.join(os.homedir(),'.claude','plugins','marketplaces','claude-plugins-official','plugins','frontend-design'),plugin,{recursive:true});
   const env={...process.env,...authentication,CLAUDE_CONFIG_DIR:auth}; delete env.CLAUDECODE;
-  const args=hostArgs(prompt,model,cap,arm==='without'?null:plugin);
+  // Project install: skill folders side by side in the workspace, as a user would copy them (no plugin).
+  const project=arm==='with'&&install==='project';
+  if(project) fs.cpSync(path.join(pluginRoot,'skills'),path.join(workspace,'.claude','skills'),{recursive:true});
+  const args=hostArgs(prompt,model,cap,arm==='without'||project?null:plugin,effort,project?'project':'');
   const start=Date.now();
   fs.mkdirSync(output,{recursive:true});
   const execution=await invoke(process.env.NOMI_CLAUDE || 'claude',args,{cwd:workspace,env,output});
   fs.mkdirSync(output,{recursive:true}); fs.writeFileSync(path.join(output,'transcript.jsonl'),execution.stdout);fs.writeFileSync(path.join(output,'stderr.txt'),execution.stderr);
   const parsed=parseTranscript(execution.stdout);
   const init=parsed.events.find(e=>e.type==='system'&&e.subtype==='init');
-  const result={case:path.basename(caseDir),suite:path.basename(path.dirname(caseDir)),arm,workspace,hostVersion:spawnSync(process.env.NOMI_CLAUDE||'claude',['--version'],{encoding:'utf8',windowsHide:true}).stdout?.trim(),model,date:new Date().toISOString(),cost:parsed.cost,error:parsed.error,ms:Date.now()-start,turns:parsed.turns,usage:parsed.usage,skills:init?.skills,plugins:init?.plugins,tools:init?.tools};
+  const result={case:path.basename(caseDir),suite:path.basename(path.dirname(caseDir)),arm,workspace,pluginRoot,effort,install,hostVersion:spawnSync(process.env.NOMI_CLAUDE||'claude',['--version'],{encoding:'utf8',windowsHide:true}).stdout?.trim(),model,date:new Date().toISOString(),cost:parsed.cost,error:parsed.error,ms:Date.now()-start,turns:parsed.turns,usage:parsed.usage,skills:init?.skills,plugins:init?.plugins,tools:init?.tools};
   if(execution.code!==0 || execution.timedOut) result.error ||= execution.timedOut?'host timed out':`host exited ${execution.code}: ${execution.stderr.slice(-500)}`;
   // Match names, not paths: every copied plugin lives in a nomi-eval-* temp folder.
   if(!result.error && arm!=='with' && (init?.skills||[]).some(n=>/(?:^|:)nomi$/.test(n))||(!result.error && arm!=='with' && (init?.plugins||[]).some(p=>p.name==='nomi')))result.error='baseline contaminated by Nomi';
@@ -242,7 +245,7 @@ async function runOne(caseDir,arm,cap,output,model) {
   return result;
 }
 async function main() {
-  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},'retry-errors':{type:'boolean'}}});
+  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},'plugin-root':{type:'string'},install:{type:'string',default:'plugin'},label:{type:'string'},effort:{type:'string',default:'low'},ceiling:{type:'string',default:'25'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},'retry-errors':{type:'boolean'}}});
   if(!opts.suite)throw new Error('--suite required (or judge)');
   const output=path.resolve(opts.out);fs.mkdirSync(output,{recursive:true});
   const ledgerFile=path.join(output,'ledger.json');
@@ -256,24 +259,25 @@ async function main() {
     }
     return;
   }
-  const cases=opts.suite.split(',').flatMap(name=>{const suite=path.join(ROOT,'evals','cases',name);return fs.readdirSync(suite).filter(name=>!opts.case||name===opts.case).map(name=>path.join(suite,name));});
+  const cases=opts.suite.split(',').flatMap(name=>{const suite=path.join(ROOT,'evals','cases',name);return fs.readdirSync(suite).filter(name=>!opts.case||opts.case.split(',').includes(name)).map(name=>path.join(suite,name));});
   const arms=opts.arm==='both'?['without','with']:[opts.arm];
   if(arms.some(a=>!['with','without','competitor'].includes(a)))throw new Error('arm must be with, without, competitor or both');
   const runs=Number(opts.runs);if(!Number.isInteger(runs)||runs<1||runs>3)throw new Error('runs must be 1–3');
   for(const dir of cases)readCase(dir); // preflight every regex before paid calls
   loadAuth(); // no cost reservation or workspace if authentication is unavailable
   for(const dir of cases)for(let run=1;run<=runs;run++)for(const arm of arms) {
-    const key=evalIdentity(`${path.basename(path.dirname(dir))}/${path.basename(dir)}`,arm,run,opts.model);
+    const scope=`${opts.label?`${opts.label}/`:''}${path.basename(path.dirname(dir))}/${path.basename(dir)}`; // a label keeps variants of one case apart
+    const key=evalIdentity(scope,arm,run,opts.model);
     const prior=ledger.find(r=>r.key===key);
     if(prior && !prior.error)continue;
     if(prior && !opts['retry-errors'])throw new Error(`prior error in ${key}; inspect it, then pass --retry-errors`);
     if(prior)prior.key+=`/failed-${Date.now()}`;
-    const cap=reserveBudget(ledger,Number(opts.cap));
-    const runOutput=path.join(output,opts.model,path.basename(path.dirname(dir)),path.basename(dir),arm,prior?`${run}-retry-${Date.now()}`:String(run));
+    const cap=reserveBudget(ledger,Number(opts.cap),Number(opts.ceiling));
+    const runOutput=path.join(output,opts.model,...scope.split('/'),arm,prior?`${run}-retry-${Date.now()}`:String(run));
     const pending={key,output:runOutput,cost:null,error:'run interrupted before result'};
     ledger.push(pending);fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
     console.log(`START ${key} (cap $${cap})`);
-    const result=await runOne(dir,arm,cap,runOutput,opts.model);
+    const result=await runOne(dir,arm,cap,runOutput,opts.model,{pluginRoot:path.resolve(opts['plugin-root']||ROOT),effort:opts.effort,install:opts.install});
     Object.assign(pending,{cost:result.cost,error:result.error});fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
     console.log(JSON.stringify({key,cost:result.cost,error:result.error,behavior:result.behavior,defects:result.defects}));
     if(result.error)throw new Error(`eval failed: ${result.error}; inspect error before resuming`);

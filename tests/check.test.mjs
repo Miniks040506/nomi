@@ -108,9 +108,34 @@ test('repo check flags a plugin manifest that disagrees with the skill', () => {
   assert.deepEqual(codes(checkRepo(root)), ['manifest.mismatch']);
 });
 
-test('domain modules enforce the six-section operational contract', () => {
-  const bad=makeSkill({'references/web.md':'# Web\n## Decide\nDo it.\n'});
-  assert.ok(codes(checkSkill(bad)).includes('module.sections'));
-  fs.writeFileSync(path.join(bad,'references/web.md'),'# Web\n'+['Decide','Traps','Instrument','Observe','Critique lenses','Moves'].map(s=>`## ${s}\nDo it.\n`).join(''));
-  assert.ok(!codes(checkSkill(bad)).includes('module.sections'));
+const SECTIONS = ['Decide','Traps','Instrument','Observe','Critique lenses','Moves'].map(s=>`## ${s}\nDo it.\n`).join('');
+const webSkill = (body) => ({ 'SKILL.md': `${GOOD_FRONTMATTER.replace('name: nomi','name: nomi-web')}\n# Web\n${body}`, 'references/direction.md': null });
+
+test('a domain skill must carry the six-section contract, so a stub cannot pass as functional', () => {
+  const stub = makeSkill(webSkill('Coming soon.\n'), 'nomi-web');
+  assert.ok(codes(checkSkill(stub)).includes('module.sections'));
+  fs.writeFileSync(path.join(stub, 'SKILL.md'), `${GOOD_FRONTMATTER.replace('name: nomi','name: nomi-web')}\n# Web\n${SECTIONS}`);
+  assert.ok(!codes(checkSkill(stub)).includes('module.sections'));
+});
+
+test('sibling paths to the shared core must resolve', () => {
+  const web = makeSkill(webSkill(`Read \`<core>/SKILL.md\`, then run \`node <core>/scripts/gone.mjs\`; see \`<skill-dir>/../nomi-motion/SKILL.md\`.\n${SECTIONS}`), 'nomi-web');
+  fs.mkdirSync(path.join(path.dirname(web), 'nomi'));
+  fs.writeFileSync(path.join(path.dirname(web), 'nomi', 'SKILL.md'), 'core');
+  assert.deepEqual(checkSkill(web).map((f) => f.message), ['<core>/scripts/gone.mjs does not exist', '<skill-dir>/../nomi-motion/SKILL.md does not exist']);
+});
+
+test('repo check accepts only the core and known domain skills, all at the manifest version', () => {
+  const core = makeSkill({});
+  const root = path.dirname(core);
+  fs.mkdirSync(path.join(root, 'skills'));
+  fs.renameSync(core, path.join(root, 'skills', 'nomi'));
+  const web = makeSkill(webSkill(SECTIONS), 'nomi-web');
+  fs.renameSync(web, path.join(root, 'skills', 'nomi-web'));
+  fs.mkdirSync(path.join(root, 'skills', 'nomi-extras'));
+  fs.mkdirSync(path.join(root, '.claude-plugin'));
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'nomi', version: '0.1.0' }));
+  assert.deepEqual(codes(checkRepo(root)), ['repo.skills']);
+  fs.writeFileSync(path.join(root, 'skills', 'nomi-web', 'SKILL.md'), `${GOOD_FRONTMATTER.replace('name: nomi','name: nomi-web').replace('0.1.0','0.2.0')}\n# Web\n${SECTIONS}`);
+  assert.deepEqual(codes(checkRepo(root)), ['manifest.mismatch', 'repo.skills']);
 });
