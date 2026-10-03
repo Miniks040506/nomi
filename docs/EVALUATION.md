@@ -31,8 +31,10 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 | `web-seeded` | 2 | L3 | Build requests on three existing pages whose S1 defects are render-only and not named by the prompt: tide leads (dusk-panel contrast, mobile-only strip overflow), reading talks (night-palette contrast, focus reset), bench prices (white-on-amber pill, `nowrap` ticket overflow); uppercase-code, masthead and square-card decoys. Archived: `web-seeded-v1` (defects in plain sight) and `web-seeded-v2` (render-only defects, category named in the prompt) both hit the baseline ceiling | Seeded S1 defects fixed, new S1 introduced | Claude Code; Codex from 3 |
 | `web-golden` | 2 | L3 | 3 contrasting briefs | Blinded pairwise preference | Claude Code; Codex from 3 |
 | `web-adherence` | 2 | L2 | 2 Build/Create tasks | Observe-before-claim, citation validity | Claude Code |
-| `trigger` | 3 | L2 | 15 should-trigger, 15 should-not prompts | Recall, false-trigger rate | Every automatable host |
-| `host-smoke` | 3 | L2 | Install → activate → `nomi doctor` → observe fixture | Pass/fail with evidence | Every host CLI present |
+| `discovery` | migration | L2 | One explicit request for the web skill, run in each install layout (`--install plugin` or `project`) | Web skill loaded, core files resolved, capture produced and opened | Claude Code; other hosts in 3 |
+| `routing` | migration | L2 | A non-web creative task (game lore) | Core skill loads, web skill does not | Claude Code |
+| `trigger` | 3 | L2 | `evals/cases/trigger/prompts.json`: 15 should-trigger prompts (7 edits to existing pages, 2 new pages, 1 review, 5 non-web creative tasks that must route to the core) and 15 should-not (backend, tests, tooling, three of them inside a web project). Each run is cut after the first actions (3 turns on Claude Code; first skill read or 4 commands on Codex) | Recall, false-trigger rate, routing | Claude Code, Codex (the two hosts with a transcript driver) |
+| `host-smoke` | 3 | L2 | `tools/verify-hosts.mjs`: temp project → project install → one explicit prompt → skill activated, `doctor` ran (`domains web`), capture produced and where, a number read from an image, subagents (self-reported) | Pass = activation and a script run | Every host CLI present |
 | `motion-seeded` / `motion-golden` | 4 | L3 | 3 fixtures (`transition: all`, layout-property animation, uniform 300 ms ease, 12 simultaneous fade-ups, no reduced-motion); 2 briefs | Seeded fixes; preference | Claude Code, Codex |
 | `3d-seeded` / `3d-golden` | 5 | L3 | 3 fixtures (ambient-only light without tone mapping; dead-center camera with near-plane clipping; unbounded controls, uncapped DPR, 300+ draw calls); 2 briefs | Seeded fixes; preference | Claude Code, Codex |
 | `game-seeded` / `game-golden` | 6 | L3 | 3 fixtures (symmetric floaty jump; no coyote time or buffer; 3-frame input delay; hits without feedback); 2 briefs | Measured feel metrics vs targets; preference | Claude Code, Codex |
@@ -70,6 +72,12 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 - A continuity rule only discriminates if it conflicts with a model habit. Current models copy the style of existing code unprompted, so rules the code already shows (no cards, one accent colour) pass without Nomi.
 - Regexes for Never items must match violations, not mentions: `border-radius: 0` enforces "no rounded corners". Test every grader pattern against compliant and violating snippets before a run.
 - Judge the visual system, not the copy: specific copy on a default-cluster page passed a lenient rubric. Design rubrics use a stronger judge than the default one.
+
+**Lessons from the hybrid migration** (2026-10-01, `evals/reports/migration-hybrid.md`)
+- Activation is decided at the first action, from the prompt wording and the skill description alone. A trigger that depends on project contents ("has a `.nomi/` folder") cannot fire. Test descriptions with edit prompts, not only creation prompts.
+- Activation is not adherence. Report what the agent did after loading the skill: observed, opened a capture, read the DNA (`behavior.dnaRead`), opened the core (`behavior.coreRead`).
+- Compare architectures with a control that isolates the cause: the same description fix on the single skill showed that wording fixes activation, and that the entry file's own steps drive observation.
+- A host update between runs (2.1.284 to 2.1.286 here) means a fresh control arm, not reuse of older numbers.
 
 **Grader lessons from Phase 2**
 - A seeded defect only measures observation if code reading alone misses it. Literal values in plain sight (`color:#aaa`, `width:1400px`, `outline:none`) and prompts that name the defect class ("for phones and keyboards") let the baseline fix everything (v1 and v2: 36/36 per arm).
@@ -116,7 +124,21 @@ node evals/harness/runner.mjs --suite regrade --model claude-sonnet-5-5
 node evals/harness/runner.mjs --suite web-golden --arm competitor --runs 3 --cap 1 --model claude-sonnet-5-5
 node evals/harness/runner.mjs --suite judge --versus competitor --model claude-sonnet-5-5
 ```
-`judge` renders both arms full-page at 1440 and 390 px (cached under `judge-renders/`) and asks a Codex model (`gpt-6-sol`, low reasoning, normal Codex login) for a blinded, position-swapped vote. The `competitor` arm loads Anthropic's `frontend-design` plugin (`NOMI_COMPETITOR_PLUGIN` overrides the path); report its activation, because an installed but unused skill is not a comparison with its guidance. `regrade` re-scores saved transcripts and workspaces after a grader change without model calls; it needs the temp workspaces the results point to. `--out` defaults to `evals/results/phase-2`. Keep one runner active against its shared ledger. Existing successful runs are reused; errors stop the suite and require inspection plus `--retry-errors`. Unknown costs block further spending. All pilots and retries count toward $25. The `--cap` is per Claude run; judge token costs are conservative estimates and must be reported separately. Do not compare a baseline with disabled native skills against an arm that retains them.
+`judge` renders both arms full-page at 1440 and 390 px (cached under `judge-renders/`) and asks a Codex model (`gpt-6-sol`, low reasoning, normal Codex login) for a blinded, position-swapped vote. The `competitor` arm loads Anthropic's `frontend-design` plugin (`NOMI_COMPETITOR_PLUGIN` overrides the path); report its activation, because an installed but unused skill is not a comparison with its guidance. `regrade` re-scores saved transcripts and workspaces after a grader change without model calls; it needs the temp workspaces the results point to. Variant runs: `--plugin-root <dir>` loads the skills and manifest from a snapshot (for example a `git archive` of an earlier commit), `--label <name>` keeps variants apart in one ledger, `--install project` copies the skill folders into the workspace's `.claude/skills/` instead of loading a plugin, `--effort <level>` and `--ceiling <usd>` set the host effort and the ledger's spend limit, and `--case a,b` selects cases. A case with `"render": false` in `nomi.json` skips the neutral render. `--out` defaults to `evals/results/phase-2`. Keep one runner active against its shared ledger. Existing successful runs are reused; errors stop the suite and require inspection plus `--retry-errors`. Unknown costs block further spending. All pilots and retries count toward $25. The `--cap` is per Claude run; judge token costs are conservative estimates and must be reported separately. Do not compare a baseline with disabled native skills against an arm that retains them.
+
+Phase 3 additions to the runner:
+```text
+node evals/harness/runner.mjs --suite trigger --arm with --runs 1 --out evals/results/phase-3                         # Claude Code
+node evals/harness/runner.mjs --suite trigger --host codex --model gpt-6.1-sol --arm with --runs 1 --out evals/results/phase-3
+node evals/harness/runner.mjs --suite trigger-report --model gpt-6.1-sol --out evals/results/phase-3
+node evals/harness/runner.mjs --suite web-seeded --host codex --model gpt-6.1-sol --arm both --runs 3 --out evals/results/phase-3
+node tools/verify-hosts.mjs [--hosts a,b] [--record] [--keep]
+```
+- `--host codex` runs `codex exec --json` in the temp workspace: with arm = the skill folders in `.agents/skills`, baseline = none. Its events are converted to the shape the Claude graders read: a command becomes a shell call, a read of a Nomi `SKILL.md` is the activation signal (Codex has no skill tool), `.md`/`.png` paths in successful commands count as reads.
+- Codex isolation is weaker than Claude Code's: the normal login and user config apply (`--ignore-user-config` makes `exec` reject every command), with `--ignore-rules --ephemeral --disable memories`. User-level skills in `~/.agents/skills` are visible to both arms. Record them with the result.
+- Codex is plan-billed: the ledger records cost 0 and results carry token usage. Usage limits, not dollars, bound a Codex run.
+- Codex does not emit an event when it views an image, so "opened a capture" and evidence-claim validity are not measurable there; only "observed" (a run report exists) is.
+- A suite is either a folder of case folders or one `prompts.json` (`id`, `prompt`, optional `fixture`, `expect`: `nomi-web`, `nomi` or `null`). Prompt-list runs skip the neutral render and are cut short on purpose; a turn-limit stop is not an error there.
 
 ## 7. Case format
 

@@ -104,6 +104,56 @@ export function checkRepo(root) {
         findings.push({ file: manifest, line: 1, code: 'manifest.mismatch', message: `plugin.json name/version (${plugin.name} ${plugin.version}) must be "nomi" and match ${name}'s metadata.version (${version})` });
       }
     }
+    findings.push(...checkPackaging(root, plugin));
+  }
+  return findings;
+}
+
+// The subset of JSON Schema the vendored manifest schemas use.
+export function validate(value, schema, at = '$') {
+  const errors = [];
+  const type = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
+  if ('const' in schema && value !== schema.const) errors.push(`${at} must be ${JSON.stringify(schema.const)}`);
+  if (schema.type && type !== schema.type) return [...errors, `${at} must be ${schema.type}`];
+  if (type === 'string') {
+    if (value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? Infinity)) errors.push(`${at} has an invalid length`);
+    if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`${at} does not match ${schema.pattern}`);
+  }
+  if (type === 'array' && schema.items) value.forEach((v, i) => errors.push(...validate(v, schema.items, `${at}[${i}]`)));
+  if (type === 'object') {
+    for (const key of schema.required || []) if (!(key in value)) errors.push(`${at}.${key} is required`);
+    for (const [key, v] of Object.entries(value)) {
+      const sub = schema.properties?.[key] ?? schema.additionalProperties;
+      if (sub === false) errors.push(`${at}.${key} is not allowed`);
+      else if (sub && typeof sub === 'object') errors.push(...validate(v, sub, `${at}.${key}`));
+    }
+  }
+  return errors;
+}
+
+// Every native package describes the same plugin, and INTEGRATIONS.md states exactly what adapters/hosts.json records.
+function checkPackaging(root, plugin) {
+  const findings = [];
+  const add = (file, code, message) => findings.push({ file: path.join(root, file), line: 1, code, message });
+  const json = (file) => { try { return JSON.parse(fs.readFileSync(path.join(root, file), 'utf8')); } catch { return null; } };
+  const table = json('adapters/hosts.json');
+  if (!table) return findings;
+  for (const file of table.manifests) {
+    const data = json(file);
+    if (!data) { add(file, 'manifest.missing', 'listed in adapters/hosts.json but missing or not JSON'); continue; }
+    if (data.name !== 'nomi') add(file, 'manifest.mismatch', `name is "${data.name}", not "nomi"`);
+    if (data.plugins) {
+      if (!data.plugins.some((p) => p.name === 'nomi')) add(file, 'manifest.mismatch', 'marketplace does not list the plugin "nomi"');
+    } else if (data.version !== plugin.version || data.description !== plugin.description) {
+      add(file, 'manifest.mismatch', 'version and description must equal .claude-plugin/plugin.json');
+    }
+  }
+  const agentPlugin = json('plugin.json');
+  if (agentPlugin) for (const error of validate(agentPlugin, json('tools/schemas/agent-plugin.schema.json'))) add('plugin.json', 'manifest.schema', error);
+  const doc = fs.existsSync(path.join(root, 'docs', 'INTEGRATIONS.md')) ? fs.readFileSync(path.join(root, 'docs', 'INTEGRATIONS.md'), 'utf8') : '';
+  for (const host of table.hosts) {
+    const row = `| ${host.name} | ${host.status} | ${host.version || '—'} | ${host.verified || '—'} |`;
+    if (!doc.includes(row)) add('docs/INTEGRATIONS.md', 'hosts.sync', `missing the row "${row}" recorded in adapters/hosts.json`);
   }
   return findings;
 }

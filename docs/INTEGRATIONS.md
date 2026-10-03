@@ -1,11 +1,11 @@
 # Nomi Integrations
 
-How Nomi reaches each target host. Host documentation below was checked on **2026-09-27** (status `D`). Local Phase 1/2 evidence is recorded separately below; the complete host matrix is Phase 3 work. `adapters/hosts.json` and host verification tooling are planned, not implemented.
+How Nomi reaches each target host. Host documentation below was checked on **2026-09-27** (status `D`). Local evidence is recorded below: the verification status table (Phase 3, `tools/verify-hosts.mjs`) and the Phase 2 and migration records. `adapters/hosts.json` is the machine-readable copy of the host table.
 
 ## 1. Summary
 
-- Every target host loads **Agent Skills** (a folder with `SKILL.md`), so Nomi ships **one canonical skill folder**, `skills/nomi/`, and no per-host copies of its logic.
-- A project install needs only two folders: **`.agents/skills/nomi`** (Codex, Cursor, OpenCode, Gemini CLI, Antigravity, OpenClaw, Hermes) and **`.claude/skills/nomi`** (Claude Code, which does not read `.agents/skills`).
+- Every target host loads **Agent Skills** (a folder with `SKILL.md`), so Nomi ships **one set of skill folders**: the shared core `skills/nomi/` and one entry skill per finished domain (`skills/nomi-web/` today), with no per-host copies of their logic. The set is installed together: domain skills reach the core as the sibling folder `../nomi`.
+- A project install copies the Nomi folders side by side into two places: **`.agents/skills/`** (Codex, Cursor, OpenCode, Gemini CLI, Antigravity, OpenClaw, Hermes) and **`.claude/skills/`** (Claude Code, which does not read `.agents/skills`).
 - Native packages are optional conveniences: a Claude Code plugin, an **Agent Plugins v1** portable package (Codex, Cursor, OpenClaw, Hermes), and a Gemini CLI extension. Antigravity and OpenCode are served by folders.
 - V1 needs no hooks, MCP servers, commands or host agent definitions on any host.
 
@@ -24,6 +24,21 @@ How Nomi reaches each target host. Host documentation below was checked on **202
 
 Status legend: `D` documented (checked 2026-09-27) · `L` verified locally (version, date, evidence) · `?` unknown · `✗` known not to work.
 
+### Verification status
+
+One row per host, identical to `adapters/hosts.json` (`npm run check` fails when they differ). `tools/verify-hosts.mjs --record` writes the JSON; the row is then updated by hand with the evidence.
+
+| Host | Status | Version | Verified | Evidence or blocker |
+|---|---|---|---|---|
+| Claude Code | D | — | — | pending |
+| OpenAI Codex | D | — | — | pending |
+| Cursor | D | — | — | pending |
+| OpenCode | D | — | — | pending |
+| Gemini CLI | D | — | — | pending |
+| Google Antigravity | D | — | — | pending |
+| OpenClaw | D | — | — | pending |
+| Hermes Agent | D | — | — | pending |
+
 ### Phase 2 local evidence (2026-09-29)
 
 | Component | Tested version / environment | Evidence and scope |
@@ -32,7 +47,12 @@ Status legend: `D` documented (checked 2026-09-27) · `L` verified locally (vers
 | Linux browser engine | WSL2 Ubuntu 26.04; portable Node 24.14.0 linux-x64; Chrome Headless Shell 154.0.8037.57 via `NOMI_BROWSER` | Same test suite with pipe transport. Portable binaries plus NSS/NSPR/ALSA libraries fetched with `apt-get download` and unpacked with `dpkg -x` under `/tmp`; no root, no system installation |
 | Claude Code local plugin | 2.1.284; `claude-sonnet-5-5`, low effort | Fresh temp workspace and config per run; `--plugin-dir` lists `nomi:nomi`. Discovery is verified; activation, script use and image opening rates are reported separately in the Phase 2 report |
 | Codex CLI as eval judge | codex-cli 0.154.0, auto-updated to 0.159.1 during the run | The npm `.cmd` shim cannot be spawned without a shell, so the harness runs its `codex.js` with Node. `--image` takes several values, so the prompt follows `--`. A copied access token without its refresh token was rejected (401), so the judge uses the normal Codex login, with `--ignore-user-config --ignore-rules --ephemeral` and a read-only sandbox |
+| Hybrid layout, Claude Code plugin (2026-10-01) | 2.1.286; `--plugin-dir` with `skills/nomi` and `skills/nomi-web` | Listed as `nomi:nomi` and `nomi:nomi-web`. On an explicit request the web skill loaded, the agent read `../nomi/SKILL.md` and ran `../nomi/scripts/nomi.mjs observe` from the project folder; 2/2 evidence claims valid |
+| Hybrid layout, Claude Code project folder (2026-10-01) | 2.1.286; `.claude/skills/nomi` and `.claude/skills/nomi-web` in the workspace | Listed as `nomi` and `nomi-web`; same resolution through `.claude/skills/nomi/…`; observed and opened the capture |
+| Hybrid layout, Codex project folder (2026-10-01) | codex-cli 0.159.1; `.agents/skills/nomi` and `.agents/skills/nomi-web`, `workspace-write` sandbox | Read both `SKILL.md` files and ran `node .agents/skills/nomi/scripts/nomi.mjs observe index.html` from the project root. Browser launch failed inside the sandbox (GPU process exit), and the agent fell back to `probe print web`. The run then stopped on the account usage limit, and it also read the user's Codex memories, so it is evidence of discovery only |
 | Restricted desktop sandbox | Local browser launch may be blocked | Actionable failure and `probe print web` fallback. This is not visual verification and does not establish Codex host compatibility |
+
+Migration checkpoint (2026-10-01, hybrid layout): Windows `npm test` 77/77 with Edge and 22/22 browser and observation tests with Chrome; WSL2 76 pass plus 1 Windows-only skip; `npm run check` clean on both.
 
 Final checkpoint (2026-09-30): Windows `npm test` 74/74 with Edge, and the browser and observation files pass 22/22 with Chrome; WSL2 73 pass plus 1 Windows-only skip; `npm run check` clean on both; no leftover profiles or browser processes. WSL shuts down when idle and clears `/tmp`, so set up the portable toolchain and run the tests in one WSL session. Run WSL tests with the Linux `node` first on PATH; otherwise WSL interop silently runs Windows npm and node. Final results and costs live in `evals/reports/phase-2.md`. macOS and the other host integrations remain unverified. Browser integration is independent of host packaging.
 
@@ -92,44 +112,56 @@ The development harness passes an unexpired Claude access token to a fresh confi
 
 | Channel | Hosts | How |
 |---|---|---|
-| Project folders | All eight | Copy `skills/nomi` to `<project>/.agents/skills/nomi`; add `<project>/.claude/skills/nomi` only when Claude Code is used (U2). `tools/install.mjs --scope project` does both idempotently |
-| User folders | All eight | `~/.agents/skills/nomi` (Codex, Cursor, OpenCode, Gemini CLI, OpenClaw default state), `~/.claude/skills/nomi`, `~/.gemini/config/skills/nomi` (Antigravity), `~/.hermes/skills/nomi` or an `external_dirs` entry. `tools/install.mjs --scope user` |
+| Project folders | All eight | Copy every folder under `skills/` (`nomi`, `nomi-web`) into `<project>/.agents/skills/`; add `<project>/.claude/skills/` only when Claude Code is used (U2). Always copy the whole set: a domain skill without `nomi` beside it loses the CLI and protocols. `tools/install.mjs --scope project` does both idempotently |
+| User folders | All eight | The same set of folders, side by side: `~/.agents/skills/nomi` (Codex, Cursor, OpenCode, Gemini CLI, OpenClaw default state), `~/.claude/skills/nomi`, `~/.gemini/config/skills/nomi` (Antigravity), `~/.hermes/skills/nomi` or an `external_dirs` entry. `tools/install.mjs --scope user` |
 | Claude Code plugin | Claude Code | `.claude-plugin/plugin.json` + `marketplace.json` at the Nomi repo root |
 | Agent Plugins v1 | Codex, Cursor, OpenClaw (≥2026.8.1), Hermes | Root `plugin.json` (`$schema` `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`, `name`, `version`, `description`, …) + `skills/`. Codex also needs `.agents/plugins/marketplace.json` |
 | Gemini CLI extension | Gemini CLI | Root `gemini-extension.json`; `skills/` is bundled |
 | Third-party installer | All eight | `npx skills add <owner>/<repo>` (vercel-labs/skills) works as a fallback, but some of its target paths lag the hosts' own docs (for example Antigravity's global path), so it is not the primary channel |
 
-Phase 3 will add the remaining manifests and installer. Today only `.claude-plugin/plugin.json` ships; `tools/check.mjs` checks its name/version against the skill.
+All five manifests ship (listed in `adapters/hosts.json`). `tools/check.mjs` requires one name, version and description across them, validates `plugin.json` against the vendored Agent Plugins schema (`tools/schemas/`), and `claude plugin validate .` passes. None has been installed from GitHub yet: the marketplace entries point at `https://github.com/Miniks040506/nomi`.
+
+Installer: `node tools/install.mjs [--scope project|user] [--hosts all|<ids>] [--dir <project>] [--dry-run] [--uninstall]`. It copies every folder under `skills/` into the distinct folders of the chosen hosts, replaces an existing Nomi folder (idempotent), refuses to touch a same-named folder that is not a Nomi skill, and `--uninstall` removes exactly what it installed. For OpenClaw use `--scope user` or `--dir <its workspace>`.
 
 ## 5. Rules for the canonical skill (normative)
 
 1. Frontmatter uses only `name`, `description`, `license`, `compatibility` and `metadata` with string values.
-2. `name` is `nomi` and equals the folder name.
+2. `name` equals the folder name: `nomi` for the core, `nomi-<domain>` (web, motion, 3d, game, world) for a domain skill. A domain folder ships only with its complete six-section module.
 3. `description` ≤400 characters with the trigger phrase first (Codex budgets all descriptions together; OpenClaw truncates under `skills.limits.maxSkillsPromptChars`; Hermes recommends short descriptions).
-4. Paths are relative to the skill folder; scripts run as `node <skill-dir>/scripts/nomi.mjs`.
+4. Paths are relative to the skill folder; scripts run as `node <skill-dir>/scripts/nomi.mjs` from the core and `node <core>/scripts/nomi.mjs` from a domain skill, where `<core>` = `<skill-dir>/../nomi`. A domain skill uses core files, never a request to invoke another skill.
 5. No host variables (`${CLAUDE_SKILL_DIR}`, `$ARGUMENTS`), no host tool names, no host-only frontmatter.
 6. Nothing refers to Nomi by a namespaced name; hosts may rename it (`nomi:nomi`, `agent-plugin-<slug>-<hash>`).
 7. Nothing requires hooks, MCP servers, commands or agent definitions.
 
-## 6. Open uncertainties (resolved in Phase 3)
+## 6. Uncertainties: Phase 3 findings (2026-10-03)
 
-| ID | Question | How to resolve |
-|---|---|---|
-| U1 | Does every host tell the model the skill's directory so `node <skill-dir>/scripts/nomi.mjs` resolves? Claude Code does ("base directory"); others unverified. Phase 2: Claude Code agents resolved it every time but sometimes ran it from the skill folder or the project's parent, so runs landed outside the project | Headless run per host asking the agent to run `nomi doctor` |
-| U2 | Cursor and OpenCode read both `.agents/skills` and `.claude/skills`; a two-folder install may list `nomi` twice | Install both, inspect the listing; the installer writes `.claude/skills` only when Claude Code is a target |
-| U3 | Codex's default sandbox may block launching a browser or reaching localhost | Run `nomi observe` through `codex exec`; document the needed sandbox setting or the `probe print` fallback |
-| U4 | Gemini CLI asks consent before `activate_skill`; behavior in `-p` runs is undocumented | Headless run with and without an approval-mode flag |
-| U5 | Antigravity's plugin schema differs from Agent Plugins at the same filename (`plugin.json`); global skill paths differ between 2.0/IDE and CLI; skill loading in `agy -p` is undocumented | Test `agy plugin install` against the repo; otherwise stay folder-only |
-| U6 | Local OpenClaw 2026.5.22 predates documented bundle support; its "workspace" may not be the project folder; nested `metadata.openclaw` conflicts with the spec's string map | Upgrade, test bundle and folder installs, confirm which folder the agent works in |
-| U7 | Hermes needs `hermes skills trust` for project skills and may lack Node | Test both project and `~/.hermes/skills` installs; check `nomi doctor` output |
-| U8 | Does Cursor's `agent -p` load skills? | Headless trigger prompt; fall back to documented IDE verification |
-| U9 | Claude Code reads a root `plugin.json` as well as `.claude-plugin/plugin.json`; precedence is undocumented | Keep both identical; confirm with `claude plugin validate .` and a load test |
-| U10 | Can each host's model open local PNG files? | Headless run asking the agent to describe a fixture image |
-| U11 | Which instruction file does each host always read? The DNA pointer (D13) goes into `AGENTS.md` and `CLAUDE.md`; a host reading neither sees the DNA only when the skill fires | Headless run in a project that holds only the pointer and the DNA; record whether the agent opens `.nomi/dna.md` |
+Resolved means verified on a real host run. Open means the host CLI was not installed or not signed in on the test machine; the question and its test stay as written.
+
+| ID | Question | Status | Finding |
+|---|---|---|---|
+| U1 | Does every host let the model resolve `node <skill-dir>/scripts/nomi.mjs`? | Resolved for Claude Code and Codex | Claude Code tells the model the skill's base directory. Codex reads the skill by its project path and ran `node .agents/skills/nomi/scripts/nomi.mjs doctor` and `observe` from the project folder; the run landed in the project's `.nomi/runs/`. Other hosts open |
+| U2 | Cursor and OpenCode read both `.agents/skills` and `.claude/skills`: is Nomi listed twice? | Open, mitigated | Neither CLI is installed. `tools/install.mjs` writes only the folders of the hosts named in `--hosts`, so a duplicate needs an explicit two-host install |
+| U3 | Does Codex's sandbox block the browser? | Resolved (Windows) | Yes. Under `workspace-write` on Windows, Chromium cannot create its nested sandbox inside Codex's restricted token: the GPU process exits with access denied and `observe` fails in about 8 s with the fallback message, never a hang. Of `--disable-gpu`, `--disable-gpu-sandbox`, `--in-process-gpu` and `--no-sandbox`, only `--no-sandbox` captured. Options for a user: run the capture outside the sandbox; set `NOMI_BROWSER_NO_SANDBOX=1` (local pages only, noted in the report; ARCHITECTURE D17); or accept the `probe print web` fallback. Codex on Linux and macOS is untested |
+| U4 | Gemini CLI consent before `activate_skill` in `-p` runs | Open | Gemini CLI not installed |
+| U5 | Antigravity plugin schema and `agy -p` skill loading | Open | `agy` not installed. V1 stays folder-only |
+| U6 | OpenClaw: bundle support, which folder is the workspace, metadata conflict | Partly resolved | OpenClaw 2026.5.22 does not read `.agents/skills` from the shell folder: its workspace is `~/.openclaw/workspace`. With the set in `~/.agents/skills`, `openclaw skills list` shows `nomi` and `nomi-web` as ready (source `agents-skills-personal`, visible to the model). An agent run was not possible: the installed `@openclaw/codex` plugin fails to load on this version, and `agent --local` needs provider keys that are not set. The Agent Plugins bundle (documented from 2026.8.1) is untested |
+| U7 | Hermes trust step and missing Node | Open | Hermes not installed |
+| U8 | Does Cursor's `agent -p` load skills? | Open | The `agent` CLI is not installed (the IDE is) |
+| U9 | Claude Code reads a root `plugin.json` and `.claude-plugin/plugin.json` | Mitigated | Both now ship. `claude plugin validate .` passes, and `npm run check` requires identical name, version and description, so precedence cannot matter. A load test with both present is pending a Claude Code sign-in |
+| U10 | Can each host's model open local PNG files? | Resolved for Claude Code and Codex | Claude Code opened captures in Phase 2 and the migration runs. Codex read a random five-digit number that existed only in a PNG. Codex emits no event for viewing an image, so image viewing cannot be graded from its transcript |
+| U11 | Which instruction file does each host always read? | Open | Not tested in Phase 3 |
+| U12 | Does every host keep the Nomi folders side by side under their own names? | Resolved for Claude Code, Codex; listing only for OpenClaw | Codex read `.agents/skills/nomi-web/SKILL.md`, then ran the core CLI at `.agents/skills/nomi/`; `doctor` printed `domains web`. OpenClaw lists both folders under their own names. Hermes plugin packages (renamed folders) remain the known risk; no bundling was needed for any verified host |
+
+Other findings:
+- `codex exec --ignore-user-config` rejects every command ("blocked by policy"), with or without `--ignore-rules`. Headless Codex runs therefore keep the user config; Nomi's harness adds `--ignore-rules --ephemeral --disable memories`.
+- `codex plugin marketplace add <repo>` accepts `.agents/plugins/marketplace.json` and lists `nomi@nomi` (tested against a throwaway `CODEX_HOME`). Installing the plugin from its GitHub URL is untested.
+- npm installs host CLIs on Windows as `.cmd` shims, which Node cannot spawn without a shell. `tools/install.mjs` `resolveBin` runs the shim's script with Node instead.
+- Codex reported that it can start subagents (self-reported; not exercised).
 
 ## 7. Verification protocol
 
-- `tools/verify-hosts.mjs` runs for every host CLI present: temp project → install → headless prompt → record discovery, activation, script execution, image viewing and subagent availability → `evals/reports/hosts-<date>.md`.
+- `tools/verify-hosts.mjs` runs for every host CLI on PATH: temp project (a git repository) → project install for that host → one headless prompt from `adapters/hosts.json` → evidence read from the host's raw output and the files it left: skill activated, `doctor` ran (`domains web`), a capture exists and where, a number read from an image, subagents (self-reported) → `evals/reports/hosts-<date>.md`. `--record` writes status, version, date and evidence into `adapters/hosts.json`.
+- Pass means activation plus a Nomi script run. Capture and image results are recorded but do not gate, because a host sandbox can block the browser.
 - A host moves to `L` only with that evidence. A host that cannot be run locally stays `D`, and README states the limitation.
 - Re-verify whenever packaging changes and within 14 days before a release. Host mechanisms changed several times in 2026 (Codex moved user skills to `~/.agents/skills`; Antigravity moved to `.agents/skills` and `~/.gemini/config/skills`), so dates matter.
 

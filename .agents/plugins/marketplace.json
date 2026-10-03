@@ -1,0 +1,12 @@
+{
+  "name": "nomi",
+  "interface": { "displayName": "Nomi" },
+  "plugins": [
+    {
+      "name": "nomi",
+      "source": { "source": "url", "url": "https://github.com/Miniks040506/nomi.git" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Design"
+    }
+  ]
+}

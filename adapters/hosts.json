@@ -1,0 +1,232 @@
+{
+  "updated": "2026-10-03",
+  "manifests": [
+    "plugin.json",
+    ".claude-plugin/plugin.json",
+    ".claude-plugin/marketplace.json",
+    "gemini-extension.json",
+    ".agents/plugins/marketplace.json"
+  ],
+  "hosts": [
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "bin": "claude",
+      "project": ".claude/skills",
+      "user": ".claude/skills",
+      "channels": [
+        "folder",
+        "claude-plugin"
+      ],
+      "headless": [
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--no-session-persistence",
+        "--setting-sources",
+        "project",
+        "--strict-mcp-config",
+        "--mcp-config",
+        "{\"mcpServers\":{}}",
+        "--allowedTools",
+        "Read,Glob,Grep,Bash,PowerShell,Skill",
+        "--model",
+        "claude-sonnet-5-5",
+        "--effort",
+        "low",
+        "--max-turns",
+        "24",
+        "--max-budget-usd",
+        "1"
+      ],
+      "activation": "\"name\":\"Skill\",\"input\":\\{\"skill\":\"(?:nomi:)?nomi(?:-web)?\"",
+      "isolation": "Fresh CLAUDE_CONFIG_DIR holding only an access token; --setting-sources project; no MCP servers",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "bin": "codex",
+      "project": ".agents/skills",
+      "user": ".agents/skills",
+      "channels": [
+        "folder",
+        "agent-plugin"
+      ],
+      "headless": [
+        "exec",
+        "--json",
+        "--ignore-rules",
+        "--ephemeral",
+        "--disable",
+        "memories",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "workspace-write",
+        "-c",
+        "model_reasoning_effort=\"low\"",
+        "--",
+        "{prompt}"
+      ],
+      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Normal login and user config (--ignore-user-config makes exec reject every command as blocked by policy); --ignore-rules --ephemeral, memories disabled. User-level skills in ~/.agents/skills stay visible to both arms",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "bin": "agent",
+      "project": ".agents/skills",
+      "user": ".agents/skills",
+      "channels": [
+        "folder",
+        "agent-plugin"
+      ],
+      "headless": [
+        "-p",
+        "{prompt}",
+        "--force",
+        "--output-format",
+        "json"
+      ],
+      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "bin": "opencode",
+      "project": ".agents/skills",
+      "user": ".agents/skills",
+      "channels": [
+        "folder"
+      ],
+      "headless": [
+        "run",
+        "{prompt}",
+        "--format",
+        "json"
+      ],
+      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md|\"name\":\\s*\"nomi(?:-web)?\"",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "bin": "gemini",
+      "project": ".agents/skills",
+      "user": ".agents/skills",
+      "channels": [
+        "folder",
+        "gemini-extension"
+      ],
+      "headless": [
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "json"
+      ],
+      "activation": "activate_skill[^\\n]{0,200}nomi|nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "antigravity",
+      "name": "Google Antigravity",
+      "bin": "agy",
+      "project": ".agents/skills",
+      "user": ".gemini/config/skills",
+      "channels": [
+        "folder"
+      ],
+      "headless": [
+        "-p",
+        "{prompt}",
+        "--output-format",
+        "json"
+      ],
+      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    },
+    {
+      "id": "openclaw",
+      "name": "OpenClaw",
+      "bin": "openclaw",
+      "project": ".agents/skills",
+      "user": ".agents/skills",
+      "channels": [
+        "folder",
+        "agent-plugin"
+      ],
+      "headless": [
+        "agent",
+        "--local",
+        "--agent",
+        "main",
+        "--message",
+        "{prompt}",
+        "--json"
+      ],
+      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null,
+      "note": "project path is relative to the OpenClaw agent workspace (~/.openclaw/workspace by default), not the shell folder: install with --dir <workspace> or --scope user"
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes Agent",
+      "bin": "hermes",
+      "project": ".agents/skills",
+      "user": ".hermes/skills",
+      "channels": [
+        "folder",
+        "agent-plugin"
+      ],
+      "headless": [
+        "chat",
+        "-q",
+        "{prompt}"
+      ],
+      "activation": "skill_view[^\\n]{0,200}nomi|nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "isolation": "Not established",
+      "status": "D",
+      "version": null,
+      "verified": null,
+      "evidence": null,
+      "blocker": null
+    }
+  ]
+}

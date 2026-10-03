@@ -19,6 +19,8 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 
 Order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Phases 4 and 5 may swap if needed.
 
+Between Phases 2 and 3 an architecture migration (not a product phase) moved Nomi to a shared core plus domain entry skills. It is DONE (2026-10-01); see "Architecture migration" below.
+
 ## Before Phase 1
 
 - Recommended (user's call): `git init` and commit the planning state, so every phase is a reviewable diff.
@@ -27,8 +29,8 @@ Order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Phases 4 and 5 may swap if n
 ## Global constraints
 
 Every phase implicitly includes these.
-- The canonical skill `skills/nomi/` conforms to the Agent Skills spec: `name: nomi` equals the folder; description ≤1,024 characters by spec and ≤400 by project budget; `metadata` values are strings.
-- No host-specific syntax inside `skills/nomi/` (`${CLAUDE_*}`, `$ARGUMENTS`, host tool names, host-only frontmatter). `tools/check.mjs` enforces it.
+- Every skill folder under `skills/` (the core `nomi` and each domain skill `nomi-<domain>`) conforms to the Agent Skills spec: `name` equals the folder; description ≤1,024 characters by spec and ≤400 by project budget; `metadata` values are strings.
+- No host-specific syntax inside `skills/` (`${CLAUDE_*}`, `$ARGUMENTS`, host tool names, host-only frontmatter). `tools/check.mjs` enforces it.
 - Budgets from ARCHITECTURE §12 are enforced by `tools/check.mjs` and tests: SKILL.md ≤150 lines, references ≤200, templates ≤120, CLI output ≤60 lines, ≤4 images per observe, DNA ≤150 lines.
 - Runtime: Node.js ≥22, ESM `.mjs`, zero runtime npm dependencies inside `skills/nomi/`. Dev dependencies live only in the root `package.json`.
 - Platforms: Windows 11, Linux (WSL2 counts), macOS when available. Scripts are invoked as `node <path>`; nothing in the skill relies on shebangs or bash.
@@ -222,6 +224,34 @@ Failure modes the design implies but no single suite fully covers. Each phase th
   - Codex drivers: normal login, auto-updates mid-run, npm shim spawned through Node on Windows.
   - Competitor arms need proof of activation.
 
+## Architecture migration — hybrid skills (between Phases 2 and 3)
+
+**Status:** DONE (2026-10-01). Not a product phase: no new capability, same acceptance criteria as Phases 1–2.
+
+**Objective.** Move from one skill with domain modules (D1) to a shared core plus one entry skill per finished domain (D14), find out why Nomi activated in only 11/27 existing-page edits, and keep the hybrid only if it measurably helps.
+
+**What changed**
+- `skills/nomi/references/web.md` became `skills/nomi-web/SKILL.md`: a web entry skill with its own description, the must-do steps first, then the six-section module. It reaches the core as `../nomi`.
+- `skills/nomi/` is the shared core and the entry for work without a domain skill. Its description no longer covers web pages and no longer relies on a `.nomi/` folder.
+- CLI: `critique pack --domain` reads lenses from the sibling domain skill; `doctor` lists the domain skills it finds.
+- `tools/check.mjs` checks every skill folder: only `nomi` and `nomi-<domain>` are allowed, a domain skill needs the full contract, sibling paths must resolve, and all versions match the manifest.
+- Harness: plugin snapshots (`--plugin-root`), variant labels, project-folder installs, effort and ceiling options, `dnaRead` and `coreRead` signals, `discovery` and `routing` cases.
+- No folders for Motion, 3D, Game or World yet: a folder would make an unfinished skill discoverable.
+
+**Outcome** (evidence and costs in `evals/reports/migration-hybrid.md`)
+- Root cause of 11/27: the description. Agents decide at their first action from the prompt wording; "polish" matched the old description and "add a card" or "improve for phones" did not; the `.nomi/` clause could never fire. Medium effort did not help (0/4).
+- 27 existing-page edits, equal conditions:
+  - Hybrid: activated 27/27, observed 27/27, read the DNA 20/27.
+  - Best single-skill variant (same fixes): activated 27/27, observed 21/27, read the DNA 15/27.
+  - Original single skill, fresh control (17 runs over 6 of the 9 cases; stopped there at the user's request): activated 7/17, observed 0/17. Phase 2 measured 11/27 and 0/27.
+  - Defects fixed and decoys intact in every arm.
+- No regressions found: new pages 5/5 activated and observed; Phase 1 cases `build-continuity` 3/3, `tweak-respects-dna` 3/3, `no-trigger-backend` 3/3, `create-writes-dna` 3/3 with a DNA file; non-web lore task routed to the core 3/3.
+- Tests: Windows 77/77 (Edge) and 22/22 (Chrome); WSL2 76 pass + 1 Windows-only skip; `check` clean.
+- Spend: $15.82 against a $20 ceiling.
+- Limits carried into Phase 3: agents never open the core from a domain skill (D15); a loaded skill lowers DNA reads (hybrid 20/27; agents without the skill read it 30/30 by exploring); hosts that separate or rename skill folders are unverified (U12); `brief-style-wins` and `vague-brief-translated` were not rerun.
+
+---
+
 ## Phase 3 — Multi-host packaging and verification
 
 **Status:** NOT STARTED
@@ -231,10 +261,10 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 **Scope**
 - Manifests at the repo root: `plugin.json` (Agent Plugins v1), `.claude-plugin/plugin.json` + `marketplace.json`, `gemini-extension.json`, `.agents/plugins/marketplace.json`. `tools/check.mjs` gains manifest consistency (name, version, description) and validation against vendored JSON schemas.
 - `adapters/hosts.json`: paths, channels, headless commands, activation signals, isolation recipe, verification record. The placeholder adapter READMEs are deleted; a per-host folder exists only for real host files. INTEGRATIONS.md stays the human source; check keeps it in sync with hosts.json.
-- `tools/install.mjs`: project and user scope, copy mode, idempotent, `--dry-run`, avoids duplicate listings (U2), Windows-safe.
+- `tools/install.mjs`: project and user scope, copy mode, idempotent, `--dry-run`, avoids duplicate listings (U2), Windows-safe. It always installs the whole set of Nomi folders side by side (D14); per host, verify that siblings stay siblings (U12) and bundle the core into the domain folder only where a host breaks them.
 - `tools/verify-hosts.mjs`: for every host CLI present, temp project → install → headless prompt → records discovery, activation, `nomi doctor` via the host, image viewing, subagent availability → `evals/reports/hosts-<date>.md`.
 - Resolve U1–U10 from INTEGRATIONS §6. Install missing CLIs where possible (Gemini CLI, OpenCode and Hermes in WSL2; Cursor's `agent`; Antigravity's `agy` if available; upgrade OpenClaw).
-- Runner drivers: Codex (full A/B from here on) plus trigger and smoke drivers for the other hosts. `trigger` and `host-smoke` suites.
+- Runner drivers: Codex (full A/B from here on) plus trigger and smoke drivers for the other hosts. `trigger` and `host-smoke` suites. The trigger suite includes edits to existing pages ("add a section", "improve it for phones"), the prompts that exposed the Phase 2 activation gap, and non-web creative prompts that must route to the core.
 - CI workflow: check and unit tests on Windows and Linux.
 - README install section written from verified channels only.
 
@@ -273,12 +303,12 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 - Timelines for page load and scripted interactions (hover, click, focus, scroll; a JSON script format), sampled frames composed into contact sheets.
 - Reduced-motion comparison run, long-animation-frame collection, settle time.
 - Hover and active state before/after sheets.
-- `observe --motion [--interact <file>]`; `references/motion.md`; DNA Motion section guidance; motion fingerprints.
+- `observe --motion [--interact <file>]`; `skills/nomi-motion/SKILL.md`; DNA Motion section guidance; motion fingerprints.
 - Suites `motion-seeded` and `motion-golden`, plus adherence cases.
 
 **Dependencies.** Phase 2.
 
-**Expected deliverables.** Probe, capture extensions, `references/motion.md`, fixtures with known timings, suites, `evals/reports/phase-4.md`.
+**Expected deliverables.** Probe, capture extensions, `skills/nomi-motion/SKILL.md`, fixtures with known timings, suites, `evals/reports/phase-4.md`.
 
 **Acceptance criteria**
 1. The inventory is exact on fixtures: durations, easings, properties and targets.
@@ -313,12 +343,12 @@ Failure modes the design implies but no single suite fully covers. Each phase th
   - Shot rendering, luminance histogram and clipping, subject coverage and centroid.
   - A frame-time sample tagged hardware or software.
 - `observe --3d [--shots …]` and a `--headed` mode; a screenshot-only degraded mode without the hook that states its limits.
-- `references/3d.md`; DNA Space section; 3D fingerprints; fixtures built on the dev dependency `three`.
+- `skills/nomi-3d/SKILL.md`; DNA Space section; 3D fingerprints; fixtures built on the dev dependency `three`.
 - Suites `3d-seeded` and `3d-golden`.
 
 **Dependencies.** Phase 2. Phase 4 is optional (camera-motion capture).
 
-**Expected deliverables.** Hooks, probe, capture extensions, `references/3d.md`, fixtures, suites, `evals/reports/phase-5.md`.
+**Expected deliverables.** Hooks, probe, capture extensions, `skills/nomi-3d/SKILL.md`, fixtures, suites, `evals/reports/phase-5.md`.
 
 **Acceptance criteria**
 1. Stats are exact on fixtures.
@@ -352,12 +382,12 @@ Failure modes the design implies but no single suite fully covers. Each phase th
   - State-trace sampling and derived metrics: time to apex, apex height, acceleration time, coyote and buffer probes.
   - Verb × channel feedback matrix from events.
   - Frame strips.
-- `observe --game --script <file>`; `references/game.md`; DNA Feel section.
+- `observe --game --script <file>`; `skills/nomi-game/SKILL.md`; DNA Feel section.
 - Fixture canvas platformer with seeded feel defects; suites `game-seeded` and `game-golden`.
 
 **Dependencies.** Phases 2 and 4.
 
-**Expected deliverables.** Hook, playtest runner, probe, `references/game.md`, fixture game, suites, `evals/reports/phase-6.md`.
+**Expected deliverables.** Hook, playtest runner, probe, `skills/nomi-game/SKILL.md`, fixture game, suites, `evals/reports/phase-6.md`.
 
 **Acceptance criteria**
 1. Latency is within ±1 frame of fixture ground truth.
@@ -394,13 +424,13 @@ Failure modes the design implies but no single suite fully covers. Each phase th
   - Generic-name hits from `data/generic-names.json`.
   - Query slices of ≤80 lines.
   - Scan of content files for proper nouns missing from canon.
-- `references/world.md`; DNA World section.
+- `skills/nomi-world/SKILL.md`; DNA World section.
 - Cross-domain ordering and multi-lens critique added to `direction.md` and `critique.md`.
 - Suites: `world-seeded`; `world-continuity` (two sessions, two hosts where possible); `crossdomain-golden`.
 
 **Dependencies.** Phase 1; Phases 4–6 for the cross-domain suite.
 
-**Expected deliverables.** Canon tools, `references/world.md`, fixture worlds (including one with 200 entities), suites, `evals/reports/phase-7.md`.
+**Expected deliverables.** Canon tools, `skills/nomi-world/SKILL.md`, fixture worlds (including one with 200 entities), suites, `evals/reports/phase-7.md`.
 
 **Acceptance criteria**
 1. Every seeded contradiction is found, with ≤1 false positive on fixtures.
@@ -502,7 +532,7 @@ Budgets and their enforcement are in ARCHITECTURE §12. Watch in particular:
 
 ## Reversible architecture decisions
 
-Recorded with triggers in ARCHITECTURE §14 (D1–D13). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
+Recorded with triggers in ARCHITECTURE §14 (D1–D16; D14 supersedes D1). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
 
 ## Open decisions (user)
 
@@ -529,4 +559,5 @@ Recorded with triggers in ARCHITECTURE §14 (D1–D13). The only one-way door fo
 
 - 2026-09-27: initial plan from the master planning run (research, architecture, eight phases).
 - 2026-09-27: Phase 1 DONE. D13 reversed (DNA pointer in AGENTS.md/CLAUDE.md); skill description rewritten after the continuity eval; U11 added to INTEGRATIONS.
+- 2026-10-01: Architecture migration DONE. Hybrid skills (core `nomi` + `nomi-web`) replace the single skill (D14–D16); activation on existing-page edits 27/27 and observation 27/27 in the migration eval; later phases deliver `skills/nomi-<domain>/SKILL.md`; U12 added to INTEGRATIONS.
 - 2026-09-30: Phase 2 DONE after the review and completion run. The seeded gate was recalibrated (baseline at ceiling; user decision); golden preference 77.8%; competitor reported. Seeded v1 and v2 archived; seeded v3 is the current suite.

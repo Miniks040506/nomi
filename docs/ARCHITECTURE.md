@@ -22,7 +22,7 @@ Coding agents already know the principles of visual design, motion, 3D, game fee
 2. **Evidence over assertion.** No claim about how something looks, moves or feels without an observation from the current session.
 3. **Taste is contextual.** Choices come from the subject, audience and brief, never from a Nomi house style. Explicit wishes in the brief override every Nomi list.
 4. **Defaults are questions, not sins.** Fingerprints of generic output ask "chosen or fallen into?". Only a project's own Never list forbids.
-5. **One canonical skill, thin adapters.** Host differences live in manifests, install paths and data, never in the skill text.
+5. **One shared core, one entry skill per domain, thin adapters.** Shared logic lives once in the core; host differences live in manifests, install paths and data, never in skill text.
 6. **State belongs to the project.** Plain files in the repo, readable by any agent and any person.
 7. **Scripts measure, the model judges.** Deterministic code for structure and measurement; judgment stays with the model.
 8. **Small context.** Progressive disclosure under enforced budgets (§12).
@@ -32,50 +32,66 @@ Coding agents already know the principles of visual design, motion, 3D, game fee
 
 ```
  Any host: Claude Code · Codex · Cursor · OpenCode · Gemini CLI · Antigravity · OpenClaw · Hermes
-     │  native discovery of skills/nomi   (adapters = manifests + install paths, no logic)
+     │  native discovery of the skill folders   (adapters = manifests + install paths, no logic)
      ▼
- SKILL.md ──► tier ──► loop ──► loads only the modules the task needs
-     │           references/direction.md · critique.md          core protocols
-     │           references/web · motion · 3d · game · world     domain modules
-     │
+ Entry skills (the host picks one by description)
+     nomi-web   web pages and UI ─┐  every must-do step is in the entry file itself
+     nomi       everything else ──┤  (motion, 3D, game, world, direction, DNA)
+                                  ▼
+ Shared core: skills/nomi/        reached from a domain skill as the sibling folder ../nomi
+     │   SKILL.md                 tiers, loop, state, honesty
+     │   references/direction.md · critique.md      protocols, one hop away
+     │   assets/                  DNA and critic templates
      ├─► scripts/nomi.mjs   (Node ≥22, zero dependencies)
      │      dna · critique pack · world · doctor
      │      observe ──► headless Chromium over CDP ──► probes/*.js run in the page
      │                        └──► .nomi/runs/<id>/  report.json · summary.md · *.png
      ▼
- The user's project (shared by every session and every agent)
+ The user's project (shared by every session, every agent and every Nomi skill)
      .nomi/dna.md   .nomi/world/**      + reads DESIGN.md, PRODUCT.md, CSS tokens when present
 ```
 
-## 4. The canonical skill
+## 4. The skills: one core, one entry skill per domain
 
-`skills/nomi/` is the only skill. It conforms to the Agent Skills specification (agentskills.io), so every target host can load it unchanged (per-host evidence: `INTEGRATIONS.md`).
+Nomi ships a shared core, `skills/nomi/`, and one entry skill per finished domain, `skills/nomi-<domain>/` (today: `nomi-web`). Every folder conforms to the Agent Skills specification (agentskills.io), so each target host can load them unchanged (per-host evidence: `INTEGRATIONS.md`). They are installed together as siblings; the installation unit is the set, never a single folder.
 
 ```
-skills/nomi/
-├── SKILL.md             scope, tiers, loop, state, CLI summary, module map, honesty rules
-├── references/
-│   ├── direction.md     core: ground → name the default → diverge → choose → translate → DNA
-│   ├── critique.md      core: evidence rules, severity, output, critic packet, refinement, stop rules
-│   └── web.md  motion.md  3d.md  game.md  world.md      domain modules
-├── assets/
-│   ├── dna.md           DNA v1 template
-│   ├── critic-brief.md  packet template filled by `nomi critique pack`
-│   ├── canon-entity.md  world entity template
-│   └── hooks/           dev-only instrumentation snippets (Three.js, React Three Fiber, games)
-└── scripts/
-    ├── nomi.mjs         CLI entry
-    ├── lib/             frontmatter (YAML subset), dna, browser, cdp, serve, capture, compose, runs; later canon
-    ├── probes/          in-page JS returning JSON: web-census, motion, three, game
-    └── data/            small dated tables: fingerprints, vague-words, generic-names
+skills/
+├── nomi/                    shared core, and the entry for work that has no domain skill yet
+│   ├── SKILL.md             scope, tiers, loop, state, CLI summary, domain map, honesty rules
+│   ├── references/
+│   │   ├── direction.md     ground → name the default → diverge → choose → translate → DNA
+│   │   └── critique.md      evidence rules, severity, output, critic packet, refinement, stop rules
+│   ├── assets/
+│   │   ├── dna.md           DNA v1 template
+│   │   ├── critic-brief.md  packet template filled by `nomi critique pack`
+│   │   ├── canon-entity.md  world entity template
+│   │   └── hooks/           dev-only instrumentation snippets (Three.js, React Three Fiber, games)
+│   └── scripts/
+│       ├── nomi.mjs         CLI entry, shared by every domain
+│       ├── lib/             frontmatter (YAML subset), dna, browser, cdp, serve, capture, compose, runs; later canon
+│       ├── probes/          in-page JS returning JSON: web-census, motion, three, game
+│       └── data/            small dated tables: fingerprints, vague-words, generic-names
+└── nomi-web/
+    └── SKILL.md             web entry: must-do steps, then the six-section web module
 ```
+Later domains add `nomi-motion/`, `nomi-3d/`, `nomi-game/` and `nomi-world/` in the same shape. A domain folder exists only when its module is complete: `tools/check.mjs` rejects a domain skill without the full contract, so nothing unfinished is ever discoverable.
 
-**SKILL.md contract**
+**How the pieces cooperate** (measured in `evals/reports/migration-hybrid.md`)
+- The host activates one entry skill from its description. Web requests, including small edits, load `nomi-web`; other creative work loads `nomi`.
+- A domain skill reaches shared files through the sibling path `<core>` = `<skill-dir>/../nomi`. It never asks for another skill to be invoked, because hosts rename skills (`nomi:nomi-web`) but keep folders side by side.
+- Agents follow what the loaded file says first and skip "go read another file first": in 48 runs that loaded `nomi-web`, no agent opened the core `SKILL.md` or its references (the single skill had the same habit: its one-hop web module was read in 5 of 36 runs). So every step that must happen on every task (read the DNA, pick the tier, capture before and after, honesty) is written in the entry file itself. The core holds what is only needed sometimes: the direction protocol, the critique protocol, templates and the CLI.
+- Domain skills cooperate through the project, not through each other: all of them read and extend the same `.nomi/dna.md`.
+
+**Core SKILL.md contract**
 - Frontmatter: `name: nomi`; `description` ≤400 characters with the trigger phrase first; optional `license`, `compatibility` (Node 22+ and a Chromium-family browser are optional accelerators), `metadata` with string values only (`version`). No host-specific keys.
-- Body order: (1) scope and exit ramp: if the task changes nothing a person sees, hears, feels or reads, stop; (2) tier selection; (3) the loop; (4) state files; (5) CLI summary; (6) module map listing only modules that exist; (7) honesty rules.
+- Body order: (1) scope and exit ramp: if the task changes nothing a person sees, hears, feels or reads, stop; (2) tier selection; (3) the loop; (4) state files; (5) CLI summary; (6) domain map listing only domain skills that exist; (7) honesty rules.
 - Paths are relative to the skill directory. Scripts run as `node <skill-dir>/scripts/nomi.mjs <command>`, where `<skill-dir>` is the folder containing SKILL.md. No `${CLAUDE_SKILL_DIR}`, `$ARGUMENTS` or host tool names; use host-neutral verbs ("run", "open the image", "start a subagent if your environment has one").
 
-**Domain module contract.** Every `references/<domain>.md` has exactly these sections:
+**Domain skill contract.** `skills/nomi-<domain>/SKILL.md` is both the entry and the module:
+- Frontmatter: `name` equals the folder; a `description` that names the domain's concrete artifacts and says small edits count; the same `metadata.version` as the core.
+- First, without a heading: where the core is (`<core>`), then the numbered must-do steps for every task in this domain, then what to do when `<core>` is missing.
+- Then exactly these sections, in this order:
 
 | Section | Contains | Must not contain |
 |---|---|---|
@@ -187,7 +203,7 @@ sources:                    # pointers only: Nomi reads these, never copies thei
 | Output | `.nomi/runs/<id>/report.json` (versioned; stable flag codes such as `web.contrast`, `motion.layout-property`), `summary.md` (≤60 lines), ≤4 images to open by default |
 | Time | Web, 2 viewports ≤15 s; motion ≤30 s; 3D ≤30 s; game playtest ≤60 s. Every wait is bounded |
 | Fidelity | Web capture is headless. Later WebGL measurements may be software-rendered; performance budgets and headed checks are future domain work, not implemented flags |
-| Safety | Local artifacts, no Nomi telemetry, temp profile removed. The browser sandbox stays on. Restricted-host failures use `probe print web` through an available host browser, or report not visually verified. URL targets may themselves make network requests |
+| Safety | Local artifacts, no Nomi telemetry, temp profile removed. The browser sandbox stays on by default. `NOMI_BROWSER_NO_SANDBOX=1` turns it off for local pages only (file, folder, localhost URL) and is noted in the run report (D17). Restricted-host failures otherwise use `probe print web` through an available host browser, or report not visually verified. URL targets may themselves make network requests |
 
 Phase 2 implementation boundaries:
 - Reports use `nomi: 1`, `kind: web|diff`, viewport census, stable finding codes, notes and absolute artifact paths. They are local evidence, not portable archives.
@@ -234,34 +250,42 @@ Not in V1: autonomous director/builder pipelines, per-host agent definitions, ma
 
 ```
 nomi/                                  target layout at the end of V1
-├── skills/nomi/                       the canonical skill (the product)
+├── skills/nomi/                       the shared core (protocols, templates, CLI)
+├── skills/nomi-<domain>/              one entry skill per finished domain (today: nomi-web)
 ├── plugin.json                        Agent Plugins v1 manifest: Codex, Cursor, OpenClaw, Hermes
 ├── .claude-plugin/                    plugin.json + marketplace.json: Claude Code
 ├── gemini-extension.json              Gemini CLI extension (bundles skills/)
 ├── .agents/plugins/marketplace.json   Codex marketplace entry
 ├── adapters/hosts.json                machine-readable host table: paths, channels, headless commands, verification
-├── adapters/<host>/                   only when a host needs its own files
-├── tools/                             check.mjs · install.mjs · verify-hosts.mjs
+├── adapters/<host>/                   only when a host needs its own files (none so far)
+├── tools/                             check.mjs · install.mjs · verify-hosts.mjs · schemas/ (vendored manifest schemas)
+├── .github/workflows/check.yml        check and tests on Windows and Linux
 ├── evals/                             cases/ · fixtures/ · harness/ · reports/
 ├── tests/                             node --test: unit tests and fixture pages
 ├── docs/
 └── package.json                       dev scripts and dev dependencies only
 ```
-Project-level reach, as documented by each host (local verification is Phase 3): `.agents/skills/nomi` serves Codex, Cursor, OpenCode, Gemini CLI, Antigravity, OpenClaw and Hermes (trust required); `.claude/skills/nomi` serves Claude Code. Channels and caveats are in `INTEGRATIONS.md`.
+Project-level reach, as documented by each host (local verification is Phase 3): the Nomi folders (`nomi` and every `nomi-<domain>`) copied side by side into `.agents/skills/` serve Codex, Cursor, OpenCode, Gemini CLI, Antigravity, OpenClaw and Hermes (trust required); the same folders in `.claude/skills/` serve Claude Code. Sibling resolution is verified on Claude Code (plugin and project folder) and Codex (project folder); OpenClaw lists both folders from `~/.agents/skills` but reads project skills from its own agent workspace, not the shell folder. Channels and caveats are in `INTEGRATIONS.md`.
+
+Packaging rules (Phase 3):
+- Every manifest names the same plugin: `tools/check.mjs` requires name `nomi`, one version and one description across `plugin.json`, `.claude-plugin/plugin.json` and `gemini-extension.json`, validates `plugin.json` against the vendored Agent Plugins schema, and requires both marketplace files to list `nomi`.
+- `adapters/hosts.json` is the machine source for host facts; the status table in `INTEGRATIONS.md` must repeat its status, version and date for every host, or `check` fails.
+- `tools/install.mjs` copies the whole set into the distinct folders of the chosen hosts, replaces only folders that are Nomi skills, and removes them with `--uninstall`.
+- `tools/verify-hosts.mjs` is the only way a host reaches status `L`.
 
 ## 12. Context budgets
 
 | Item | Budget | Enforced by |
 |---|---|---|
-| Skill description | ≤400 characters, trigger phrase first | `tools/check.mjs` |
-| SKILL.md | ≤150 lines (about 2k tokens) | `tools/check.mjs` |
+| Skill description | ≤400 characters per skill, trigger phrase first | `tools/check.mjs` |
+| SKILL.md, core and each domain skill | ≤150 lines (about 2k tokens) | `tools/check.mjs` |
 | Each reference file | ≤200 lines, loaded only when relevant | `tools/check.mjs` |
 | Templates | ≤120 lines | `tools/check.mjs` |
 | CLI output | ≤60 lines by default; details go to files | tests |
 | Images per observe | ≤4 opened by default; viewing copies ≤1280 px wide | tests |
 | DNA | ≤150 lines, ≤20 decisions | `nomi dna check` |
 | Canon slice | ≤80 lines per `world query` | tests |
-| Typical load | Tweak: SKILL.md plus DNA sections. Build: plus one module and one run. Create: plus direction, critique, ≤2 modules | token-overhead evals |
+| Typical load | Web task: `nomi-web/SKILL.md` (about 60 lines) plus DNA and one run. Other work: core SKILL.md plus DNA. Create: plus direction and critique, ≤2 domain skills | token-overhead evals |
 
 ## 13. Non-goals and duplication boundaries
 
@@ -279,7 +303,7 @@ V1 non-goals: hooks, an MCP server, user-level taste profiles, non-browser obser
 
 | # | Decision | Why | Reversibility / trigger to revisit |
 |---|---|---|---|
-| D1 | One skill `nomi` with domain modules, replacing six skill folders | Cross-skill references are not portable (Claude Code namespaces plugin skills as `nomi:<skill>`; Hermes namespaces packaged skills as `agent-plugin-<slug>-<hash>`; skill hubs install skills one by one). Listing budgets penalize many descriptions (Codex: ≤2% of context or 8,000 characters for all skills). Every domain needs the same loop | Reversible: generate thin per-domain entry skills from the same source if Phase 3 trigger evals show poor domain recall |
+| D1 | One skill `nomi` with domain modules, replacing six skill folders | Cross-skill references are not portable (Claude Code namespaces plugin skills as `nomi:<skill>`; Hermes namespaces packaged skills as `agent-plugin-<slug>-<hash>`; skill hubs install skills one by one). Listing budgets penalize many descriptions (Codex: ≤2% of context or 8,000 characters for all skills). Every domain needs the same loop | Superseded by D14 (2026-10-01) through this reversible path. Its portability concerns remain and shape D14: no cross-skill invocation, sibling folders only |
 | D2 | Agent Skills spec-pure canonical skill; host specifics only in root manifests and `adapters/hosts.json` | Seven of eight hosts read `.agents/skills`; all eight read SKILL.md folders | Easy |
 | D3 | Creative state in `.nomi/` (DNA v1, canon) | Vendor-neutral memory across sessions and agents | One-way for users: versioned schema; a migration command ships before any breaking change |
 | D4 | Interop with DESIGN.md, PRODUCT.md and CSS tokens; never duplicate token values | Avoid drift and competing sources of truth | Easy |
@@ -292,7 +316,11 @@ V1 non-goals: hooks, an MCP server, user-level taste profiles, non-browser obser
 | D11 | Automated observation only for browser-rendered targets | Web, WebGL and web games share one engine | Future per-engine adapters |
 | D12 | Evals: `claude plugin eval` for Claude Code behavior suites; the Nomi runner for cross-host outcome A/B | First-party isolation where it exists | Easy |
 | D13 | `dna init` adds a one-line DNA pointer to AGENTS.md and CLAUDE.md (creating AGENTS.md if neither exists) | Phase 1 eval: skill activation alone left the DNA unread in 3/3 runs of an ordinary UI request; persistent state must not depend on a skill firing | Easy: remove the line. Its effect on agents without Nomi is verified per host in Phase 3 (INTEGRATIONS U11); revisit if hosts gain a standard way to register project state |
+| D14 | Hybrid: shared core `skills/nomi` plus one entry skill per finished domain (`nomi-web` first). The domain skill is entry and module in one file and reaches core files as the sibling folder `../nomi` | Migration eval, 27 existing-page edits, equal conditions: the hybrid observed 27/27 and read the DNA 20/27, against 21/27 and 15/27 for the best single-skill variant (same description fix, same must-do block); activation 27/27 for both. Domain steps sit in the file that loads | Reversible: fold `nomi-web/SKILL.md` back into `references/web.md`. Revisit if a host installs or renames skill folders one by one (INTEGRATIONS U12), or if listing budgets bite with five domains |
+| D15 | Must-do steps live in the entry file; the core is one hop away and holds only what is sometimes needed | In 48 `nomi-web` runs no agent followed "read the core first"; in the single skill the one-hop web module was read in 5 of 36 runs. What is not in the loaded file is skipped at low effort | Easy: move lines between files. `tools/check.mjs` keeps domain skills on the six-section contract |
+| D16 | Descriptions name concrete artifacts and say small edits count; the "any project with a `.nomi/` folder" trigger is dropped | Root cause of 11/27 activation: the choice is made at the first action, from the prompt's wording alone, before the agent has seen the project. Fixing the description alone raised activation from 1/8 to 8/8; medium effort did not help (0/4) | Easy: edit the description. Phase 3 trigger suite owns recall and false-trigger gates |
+| D17 | `NOMI_BROWSER_NO_SANDBOX=1` starts the browser without its own sandbox, for local targets only (file, folder, loopback URL); the run report notes it. Off by default and absent from the skill text and error messages | Phase 3, Codex 0.159.3 on Windows: inside the `workspace-write` sandbox Chromium cannot create its nested sandbox (GPU process exits with access denied); of five flag sets tried only `--no-sandbox` captured. Local pages are project code the host sandbox already confines. In the verification run the Codex agent found the switch by reading `browser.mjs` and set it itself | Easy: delete the switch; Codex on Windows then has only `probe print` or "not visually verified". Revisit if agents use it outside a host sandbox, or if Codex lets a sandboxed process start Chromium |
 
 ## 15. Glossary
 
-**Tier**: Tweak, Build or Create; sets how much of the loop runs. **Direction note**: five lines of concrete direction written before a Build. **DNA**: `.nomi/dna.md`, the project's durable creative direction. **Canon**: the World module's entity files. **Run**: one `nomi observe` result in `.nomi/runs/<id>/`. **Probe**: in-page JS that measures and returns JSON. **Fingerprint**: a dated signature of generic output that prompts "chosen or fallen into?". **Critic packet**: the self-contained brief from `nomi critique pack`. **Module**: a domain reference file under the six-section contract. **Host**: an agent environment that loads the skill. **Channel**: a way to install Nomi into a host (folder, plugin, extension).
+**Tier**: Tweak, Build or Create; sets how much of the loop runs. **Direction note**: five lines of concrete direction written before a Build. **DNA**: `.nomi/dna.md`, the project's durable creative direction. **Canon**: the World module's entity files. **Run**: one `nomi observe` result in `.nomi/runs/<id>/`. **Probe**: in-page JS that measures and returns JSON. **Fingerprint**: a dated signature of generic output that prompts "chosen or fallen into?". **Critic packet**: the self-contained brief from `nomi critique pack`. **Core**: `skills/nomi`, the shared protocols, templates and CLI. **Domain skill**: `skills/nomi-<domain>`, an entry skill whose body is the domain module under the six-section contract. **Module**: the six sections of a domain skill. **Host**: an agent environment that loads the skill. **Channel**: a way to install Nomi into a host (folder, plugin, extension).

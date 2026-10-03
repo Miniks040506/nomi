@@ -139,3 +139,36 @@ test('repo check accepts only the core and known domain skills, all at the manif
   fs.writeFileSync(path.join(root, 'skills', 'nomi-web', 'SKILL.md'), `${GOOD_FRONTMATTER.replace('name: nomi','name: nomi-web').replace('0.1.0','0.2.0')}\n# Web\n${SECTIONS}`);
   assert.deepEqual(codes(checkRepo(root)), ['manifest.mismatch', 'repo.skills']);
 });
+
+test('the manifest validator covers the vendored Agent Plugins schema', async () => {
+  const { validate } = await import('../tools/check.mjs');
+  const schema = JSON.parse(fs.readFileSync(new URL('../tools/schemas/agent-plugin.schema.json', import.meta.url), 'utf8'));
+  const good = { $schema: schema.$id, name: 'nomi', version: '0.1.0', author: { name: 'a' }, keywords: ['x'] };
+  assert.deepEqual(validate(good, schema), []);
+  assert.equal(validate({ ...good, name: 'No--mi', skills: './skills', author: { handle: 'a' }, keywords: [1] }, schema).length, 4);
+  assert.match(validate({ name: 'nomi' }, schema)[0], /\$schema is required/);
+});
+
+test('packaging check: manifests agree, the Agent Plugins manifest is valid, INTEGRATIONS matches hosts.json', () => {
+  const core = makeSkill({});
+  const root = path.dirname(core);
+  fs.mkdirSync(path.join(root, 'skills'));
+  fs.renameSync(core, path.join(root, 'skills', 'nomi'));
+  const write = (file, data) => { fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); fs.writeFileSync(path.join(root, file), typeof data === 'string' ? data : JSON.stringify(data)); };
+  const plugin = { name: 'nomi', version: '0.1.0', description: 'd' };
+  write('.claude-plugin/plugin.json', plugin);
+  write('plugin.json', { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', ...plugin });
+  write('gemini-extension.json', plugin);
+  write('market.json', { name: 'nomi', plugins: [{ name: 'nomi' }] });
+  write('tools/schemas/agent-plugin.schema.json', fs.readFileSync(new URL('../tools/schemas/agent-plugin.schema.json', import.meta.url), 'utf8'));
+  write('adapters/hosts.json', { manifests: ['plugin.json', 'gemini-extension.json', 'market.json'], hosts: [{ name: 'Host A', status: 'L', version: '1.2', verified: '2026-10-03' }, { name: 'Host B', status: 'D' }] });
+  write('docs/INTEGRATIONS.md', '| Host A | L | 1.2 | 2026-10-03 | ok |\n| Host B | D | — | — | not installed |\n');
+  assert.deepEqual(checkRepo(root), []);
+  write('gemini-extension.json', { ...plugin, version: '0.2.0' });
+  write('plugin.json', { ...plugin, extra: true });
+  write('market.json', { name: 'nomi', plugins: [{ name: 'other' }] });
+  write('docs/INTEGRATIONS.md', '| Host A | L | 1.2 | 2026-10-03 | ok |\n| Host B | L | — | — | claimed |\n');
+  assert.deepEqual(codes(checkRepo(root)), ['hosts.sync', 'manifest.mismatch', 'manifest.mismatch', 'manifest.schema', 'manifest.schema']);
+  fs.rmSync(path.join(root, 'market.json'));
+  assert.ok(codes(checkRepo(root)).includes('manifest.missing'));
+});

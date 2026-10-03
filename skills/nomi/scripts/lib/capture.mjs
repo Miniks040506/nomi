@@ -122,6 +122,8 @@ export async function observe(target, opts={}) {
   const viewports=parseViewports(opts.viewport);
   const wait=opts.wait===undefined ? 1800 : Number(opts.wait);
   if(!Number.isFinite(wait) || wait<200 || wait>5000) throw new Error('--wait must be 200–5000 ms');
+  // The opt-in sandbox switch is for the project's own pages only: files, folders and loopback dev servers.
+  if(process.env.NOMI_BROWSER_NO_SANDBOX==='1' && /^https?:\/\//i.test(target) && !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[\/?#]|$)/i.test(target)) throw new Error('NOMI_BROWSER_NO_SANDBOX=1 only captures local pages (a file, a folder or a localhost URL); unset it for other URLs');
   const executable=findBrowser();
   let server,browser,run;
   try {
@@ -131,6 +133,7 @@ export async function observe(target, opts={}) {
     browser=await launchBrowser({executable});
     run=createRun(opts.cwd);
     const report={nomi:1,id:run.id,kind:'web',target,label:opts.label || '',created:new Date().toISOString(),browser:browser.version,transport:browser.transport,viewports:[],images:[],findings:[],notes:[]};
+    if(process.env.NOMI_BROWSER_NO_SANDBOX==='1')report.notes.push('Browser sandbox was off (NOMI_BROWSER_NO_SANDBOX=1).');
     const page=browser.page;
     const design=designSource(opts.cwd||process.cwd());
     await page.send('Page.enable'); await page.send('Network.enable');

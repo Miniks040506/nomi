@@ -191,3 +191,13 @@ test('version comes from the skill metadata; unknown commands exit 2', () => {
   assert.match(nomi(dir, 'version').out, /^nomi \d+\.\d+\.\d+/);
   assert.equal(nomi(dir, 'bogus').code, 2);
 });
+
+test('the opt-in browser sandbox switch refuses non-local URLs before any browser starts', () => {
+  const run = (target) => spawnSync(process.execPath, [CLI, 'observe', target], { cwd: tmp(), encoding: 'utf8', env: { ...process.env, NOMI_BROWSER_NO_SANDBOX: '1', NOMI_BROWSER: path.join(os.tmpdir(), 'no-such-browser') } });
+  const remote = run('https://example.com/');
+  assert.equal(remote.status, 2);
+  assert.match(remote.stderr, /only captures local pages/);
+  assert.match(run('https://localhost.example.com/').stderr, /only captures local pages/);
+  // A loopback URL passes this gate and fails later, on the missing browser.
+  assert.match(run('http://localhost:5173/').stderr, /NOMI_BROWSER is not a file/);
+});

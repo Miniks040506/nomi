@@ -1,0 +1,14 @@
+{
+  "name": "nomi",
+  "description": "Nomi: creative direction, observation and critique skills for coding agents.",
+  "owner": {
+    "name": "Miniks"
+  },
+  "plugins": [
+    {
+      "name": "nomi",
+      "source": "./",
+      "description": "Creative direction, critique and refinement for coding agents: web UI, motion, 3D, games and worlds."
+    }
+  ]
+}

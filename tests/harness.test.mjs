@@ -123,3 +123,58 @@ test('eval timeout kills descendants and returns even when they inherit output p
   const result=await invoke(process.execPath,['-e',code],{cwd:process.cwd(),env:process.env,timeout:500});
   assert.equal(result.timedOut,true);assert.throws(()=>process.kill(Number(result.stdout.trim()),0));
 });
+
+test('Codex transcripts grade like Claude ones: a SKILL.md read is activation, observe and opened captures count', async t => {
+  const { codexEvents, transcriptGrade, codexArgs }=await harness();
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-grader-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const cwd=path.join(root,'project'), id='1790585771830-51650ea5-37fb-4c9c-9944-81202b454a89', dir=path.join(cwd,'.nomi','runs',id);
+  fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify({nomi:1,id,kind:'web',findings:[],viewports:[{findings:[]}]}));
+  const item=(type,rest)=>JSON.stringify({type:'item.completed',item:{id:'i',type,...rest}});
+  const lines=[item('command_execution',{command:'pwsh -Command "Get-Content .agents/skills/nomi-web/SKILL.md; Get-Content .nomi/dna.md"',aggregated_output:'…',exit_code:0}),
+    item('command_execution',{command:'pwsh -Command "node .agents/skills/nomi/scripts/nomi.mjs observe index.html"',aggregated_output:`Run ${id} · web`,exit_code:1}),
+    item('agent_message',{text:'I opened the 390×844 screenshot. 0 findings.'}),
+    item('view_image',{path:path.join(dir,'390x844.png')}),
+    JSON.stringify({type:'turn.completed',usage:{input_tokens:10,output_tokens:2}})].join('\n');
+  const parsed=codexEvents(lines,cwd), b=transcriptGrade(parsed.events,root);
+  assert.deepEqual([parsed.error,parsed.cost,b.activation,b.skills,b.firstAction,b.dnaRead,b.observed,b.looked,b.claims,b.validClaims],[null,0,true,['nomi-web'],'Skill',true,true,true,2,2]);
+  assert.equal(transcriptGrade(codexEvents(item('command_execution',{command:'ls .agents/skills',aggregated_output:'nomi-web/SKILL.md',exit_code:0}),cwd).events,root).activation,false,'a listing that mentions the skill is not activation');
+  assert.match(codexEvents(lines.replace('turn.completed','turn.failed'),cwd).error,/turn failed/);
+  assert.match(codexEvents('',cwd).error,/missing result/);
+  const args=codexArgs('Build','gpt-6-sol');assert.equal(args.at(-1),'Build');assert.ok(args.includes('--ignore-rules')&&args.includes('workspace-write'));
+});
+
+test('trigger suite: prompts load from one list, and recall, false triggers and routing are computed', async () => {
+  const { loadCases, triggerSummary }=await harness();
+  const cases=loadCases('trigger');
+  assert.deepEqual([cases.filter(c=>c.config.expect).length,cases.filter(c=>!c.config.expect).length],[15,15]);
+  assert.ok(cases.every(c=>c.config.render===false&&c.config.maxTurns===3&&(!c.config.fixture||fs.existsSync(new URL(`../evals/fixtures/${c.config.fixture}`,import.meta.url)))));
+  assert.equal(new Set(cases.map(c=>c.name)).size,30);
+  assert.deepEqual(loadCases('routing').map(c=>c.name),['world-lore']);
+  const r=(c,expect,skills)=>({case:c,expect,activation:skills.length>0,skills});
+  assert.deepEqual(triggerSummary([r('a','nomi-web',['nomi:nomi-web']),r('b','nomi',['nomi-web']),r('c','nomi-web',[]),r('d',null,[]),r('e',null,['nomi'])]),
+    {recall:2/3,falseTrigger:.5,routed:.5,missed:['c'],falses:['e'],misrouted:['b']});
+});
+
+test('host smoke grading reads activation, the doctor line, a real run and the proof number from raw host output', async t => {
+  const { gradeSmoke }=await import('../tools/verify-hosts.mjs');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-smoke-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const id='1790585771830-51650ea5-37fb-4c9c-9944-81202b454a89', dir=path.join(root,'project','.nomi','runs',id);
+  fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify({nomi:1,id,kind:'web'}));
+  const host={activation:'nomi(?:-web)?[\\\\/]+SKILL\\.md'};
+  const text=`{"command":"cat .agents\\\\skills\\\\nomi-web\\\\SKILL.md"}\ndomains web\nRun ${id}\n{"text":"RUN: ${id}\\nDOMAINS: web\\nPROOF: **48213**\\nSUBAGENTS: yes"}`;
+  assert.deepEqual(gradeSmoke(text,host,root,'48213'),{activated:true,doctor:true,observed:true,inProject:true,image:true,subagents:'yes'});
+  assert.deepEqual(gradeSmoke('PROOF: 11111\nRun 1790585771830-00000000-37fb-4c9c-9944-81202b454a89',host,root,'48213'),{activated:false,doctor:false,observed:false,inProject:false,image:false,subagents:null});
+});
+
+test('behaviour signals name the skills used and whether the DNA and the core were opened', async t => {
+  const { transcriptGrade, hostArgs }=await harness();
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-grader-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const read=(id,file)=>({type:'tool_use',id,name:'Read',input:{file_path:file}});
+  const events=[{type:'assistant',message:{content:[{type:'tool_use',id:'s',name:'Skill',input:{skill:'nomi:nomi-web'}},read('d',path.join(root,'project','.nomi','dna.md')),read('c',path.join(root,'plugin','skills','nomi','SKILL.md')),read('w',path.join(root,'plugin','skills','nomi-web','SKILL.md'))]}},
+    {type:'user',message:{content:['s','d','c','w'].map(id=>({type:'tool_result',tool_use_id:id,content:'ok'}))}}];
+  const b=transcriptGrade(events,root);
+  assert.deepEqual([b.activation,b.skills,b.firstAction,b.dnaRead,b.coreRead],[true,['nomi:nomi-web'],'Skill',true,true]);
+  assert.equal(transcriptGrade([{type:'assistant',message:{content:[read('w',path.join(root,'skills','nomi-web','SKILL.md'))]}}],root).coreRead,false,'the web skill file is not the core');
+  const args=hostArgs('Build','claude-sonnet-5-5',1,null,'medium','project');
+  assert.equal(args[args.indexOf('--effort')+1],'medium');assert.equal(args[args.indexOf('--setting-sources')+1],'project');
+});

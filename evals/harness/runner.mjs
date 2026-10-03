@@ -11,7 +11,7 @@ import { readRun } from '../../skills/nomi/scripts/lib/runs.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 export function evalIdentity(caseName,arm,run,model) {
-  if(!/^claude-sonnet-5(?:-5)?$/.test(model))throw new Error("use a pinned model id");
+  if(!/^(?:claude-sonnet-5(?:-5)?|gpt-\d[\w.-]*)$/.test(model))throw new Error("use a pinned model id");
   return `${model}/${caseName}/${arm}/${run}`;
 }
 export function parseTranscript(text) {
@@ -33,7 +33,7 @@ export function isolatedAuth(credentials) {
   if(!oauth?.accessToken || !Number.isFinite(oauth.expiresAt) || oauth.expiresAt<Date.now()+600000) throw new Error('Claude authentication expires too soon; sign in before running evals');
   return {CLAUDE_CODE_OAUTH_TOKEN:oauth.accessToken};
 }
-function loadAuth() {
+export function loadAuth() {
   if(process.env.CLAUDE_CODE_OAUTH_TOKEN)return {CLAUDE_CODE_OAUTH_TOKEN:process.env.CLAUDE_CODE_OAUTH_TOKEN};
   const source=path.join(process.env.CLAUDE_CONFIG_DIR||path.join(os.homedir(),'.claude'),'.credentials.json');
   return isolatedAuth(JSON.parse(fs.readFileSync(source,'utf8')));
@@ -46,6 +46,50 @@ function readCase(dir) {
     if(!gradeRegex(rule.compliant,rule) || gradeRegex(rule.violating,rule)) throw new Error(`invalid grader examples: ${rule.id}`);
   }
   return {prompt:prompt.body.trim(),config};
+}
+// A suite is a folder of case folders, or one prompts.json of {id,prompt,fixture,expect} for prompt-only suites (trigger).
+export function loadCases(suite,only) {
+  const dir=path.join(ROOT,'evals','cases',suite), list=path.join(dir,'prompts.json');
+  const cases=fs.existsSync(list)
+    ? JSON.parse(fs.readFileSync(list,'utf8')).map(c=>({suite,name:c.id,prompt:c.prompt,config:{fixture:c.fixture,expect:c.expect,render:false,maxTurns:3}}))
+    : fs.readdirSync(dir).map(name=>({suite,name,...readCase(path.join(dir,name))}));
+  return cases.filter(c=>!only||only.includes(c.name));
+}
+// Codex exec --json events in the shape the Claude graders read: commands become Bash calls, a read of a Nomi
+// SKILL.md becomes a Skill call (Codex activates a skill by reading it), and .md/.png paths become Read calls.
+export function codexEvents(stdout,cwd) {
+  let lines;
+  try { lines=stdout.trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)); }
+  catch { return {error:'invalid transcript JSON',cost:null,events:[]}; }
+  const events=[]; let n=0;
+  const call=(name,input,content,is_error=false)=>{const id=`c${n++}`;events.push({type:'assistant',message:{content:[{type:'tool_use',id,name,input}]}},{type:'user',message:{content:[{type:'tool_result',tool_use_id:id,is_error,content}]}});};
+  for(const {type,item} of lines) {
+    if(type!=='item.completed'||!item)continue;
+    if(item.type==='agent_message')events.push({type:'assistant',message:{content:[{type:'text',text:item.text||''}]}});
+    else if(item.type==='command_execution') {
+      for(const skill of new Set([...item.command.matchAll(/[\\/](nomi(?:-[a-z0-9]+)?)[\\/]+SKILL\.md/g)].map(m=>m[1])))call('Skill',{skill},'');
+      call('Bash',{command:item.command},item.aggregated_output||'',item.exit_code!==0);
+      if(item.exit_code===0)for(const m of item.command.matchAll(/[^\s'"`;|()=]+\.(?:md|png)\b/gi))call('Read',{file_path:path.resolve(cwd,m[0])},'');
+    } else { // image views and other tools: any item that names a .png counts as opening it
+      const file=[item.path,item.file_path,item.arguments?.path].find(p=>typeof p==='string'&&/\.png$/i.test(p));
+      if(file)call('Read',{file_path:path.resolve(cwd,file)},'');
+    }
+  }
+  const done=lines.findLast(e=>e.type==='turn.completed'), failed=lines.find(e=>['turn.failed','error'].includes(e.type));
+  const final=events.findLast(e=>e.type==='assistant'&&e.message.content[0].type==='text');
+  if(final){events.splice(events.indexOf(final),1);events.push(final);} // the graders read the last assistant event as the final report
+  // Plan-billed: no dollar cost is reported, so the ledger records 0 and the report gives tokens.
+  return {events,cost:0,usage:done?.usage,turns:n,result:final?.message.content[0].text||'',error:failed?(failed.error?.message||failed.message||'turn failed'):done?null:'missing result'};
+}
+export function codexArgs(prompt,model,effort='low') {
+  return ['exec','--json','--ignore-rules','--ephemeral','--disable','memories','--skip-git-repo-check','--sandbox','workspace-write','--model',model,'-c',`model_reasoning_effort="${effort}"`,'--',prompt];
+}
+// Trigger suite: recall over prompts that should load a Nomi skill, false-trigger rate over those that should not.
+export function triggerSummary(results) {
+  const should=results.filter(r=>r.expect), not=results.filter(r=>!r.expect);
+  const hit=should.filter(r=>r.activation), routed=hit.filter(r=>r.skills.some(s=>s.replace(/^nomi:/,'')===r.expect));
+  const falses=not.filter(r=>r.activation);
+  return {recall:should.length?hit.length/should.length:null,falseTrigger:not.length?falses.length/not.length:null,routed:hit.length?routed.length/hit.length:null,missed:should.filter(r=>!r.activation).map(r=>r.case),falses:falses.map(r=>r.case),misrouted:hit.filter(r=>!routed.includes(r)).map(r=>r.case)};
 }
 const RUN_ID=/\d{13}-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/g;
 // Agents run the CLI from the project, its parent or the skill folder, so search the whole eval root.
@@ -166,7 +210,7 @@ export function evaluationResult(output,ledger,key) {
   if(!entry)throw new Error(`missing run: ${key}`);
   return JSON.parse(fs.readFileSync(path.join(entry.output||path.join(output,key),'result.json'),'utf8'));
 }
-export function invoke(command,args,{cwd,env,timeout=300000,output}) {
+export function invoke(command,args,{cwd,env,timeout=300000,output,until}) {
   return new Promise(resolve=>{
     const child=spawn(command,args,{cwd,env,windowsHide:true,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',timedOut=false;
@@ -174,13 +218,13 @@ export function invoke(command,args,{cwd,env,timeout=300000,output}) {
     const timer=setTimeout(()=>{timedOut=true;stop();},timeout);
     process.once('SIGINT',stop);process.once('SIGTERM',stop);
     const finish=result=>{clearTimeout(timer);process.off('SIGINT',stop);process.off('SIGTERM',stop);resolve(result);};
-    child.stdout.on('data',s=>{stdout+=s;if(output)fs.appendFileSync(path.join(output,'transcript.jsonl'),s);}); child.stderr.on('data',s=>{stderr+=s;if(output)fs.appendFileSync(path.join(output,'stderr.txt'),s);});
+    child.stdout.on('data',s=>{stdout+=s;if(output)fs.appendFileSync(path.join(output,'transcript.jsonl'),s);if(until?.(stdout))stop();}); child.stderr.on('data',s=>{stderr+=s;if(output)fs.appendFileSync(path.join(output,'stderr.txt'),s);});
     child.on('error',e=>finish({stdout,stderr:e.message,code:2}));
     child.on('close',code=>finish({stdout,stderr,code,timedOut}));
   });
 }
-export function hostArgs(prompt,model,cap,plugin,effort='low',settingSources='') {
-  const args=['-p',prompt,'--model',model,'--effort',effort,'--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources',settingSources,'--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--allowedTools','Read,Write,Edit,Glob,Grep,Bash,PowerShell,Skill','--max-budget-usd',String(cap),'--max-turns','32'];
+export function hostArgs(prompt,model,cap,plugin,effort='low',settingSources='',maxTurns=32) {
+  const args=['-p',prompt,'--model',model,'--effort',effort,'--output-format','stream-json','--verbose','--no-session-persistence','--setting-sources',settingSources,'--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--allowedTools','Read,Write,Edit,Glob,Grep,Bash,PowerShell,Skill','--max-budget-usd',String(cap),'--max-turns',String(maxTurns)];
   if(plugin)args.push('--plugin-dir',plugin);
   return args;
 }
@@ -195,9 +239,9 @@ async function originalS1(config) {
   }
   return ORIGINAL.get(config.fixture);
 }
-async function runOne(caseDir,arm,cap,output,model,{pluginRoot=ROOT,effort='low',install='plugin'}={}) {
-  const {prompt,config}=readCase(caseDir);
-  const authentication=loadAuth();
+async function runOne({suite,name,prompt,config},arm,cap,output,model,{pluginRoot=ROOT,effort='low',install='plugin',host='claude'}={}) {
+  const codex=host==='codex';
+  const authentication=codex?{}:loadAuth();
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-eval-'));
   const workspace=path.join(temp,'project'), auth=path.join(temp,'config');
   fs.mkdirSync(workspace);fs.mkdirSync(auth);
@@ -214,23 +258,31 @@ async function runOne(caseDir,arm,cap,output,model,{pluginRoot=ROOT,effort='low'
   if(arm==='competitor') fs.cpSync(process.env.NOMI_COMPETITOR_PLUGIN||path.join(os.homedir(),'.claude','plugins','marketplaces','claude-plugins-official','plugins','frontend-design'),plugin,{recursive:true});
   const env={...process.env,...authentication,CLAUDE_CONFIG_DIR:auth}; delete env.CLAUDECODE;
   // Project install: skill folders side by side in the workspace, as a user would copy them (no plugin).
-  const project=arm==='with'&&install==='project';
-  if(project) fs.cpSync(path.join(pluginRoot,'skills'),path.join(workspace,'.claude','skills'),{recursive:true});
-  const args=hostArgs(prompt,model,cap,arm==='without'||project?null:plugin,effort,project?'project':'');
+  // Codex reads project skills from .agents/skills; it has no plugin flag, so its with arm is always a project install.
+  const project=arm==='with'&&(install==='project'||codex);
+  if(project) fs.cpSync(path.join(pluginRoot,'skills'),path.join(workspace,codex?'.agents':'.claude','skills'),{recursive:true});
+  const [command,...prefix]=codex?codexCommand():[process.env.NOMI_CLAUDE || 'claude'];
+  const args=codex?codexArgs(prompt,model,effort):hostArgs(prompt,model,cap,arm==='without'||project?null:plugin,effort,project?'project':'',config.maxTurns);
+  // A trigger run only needs the first actions: stop Codex once a Nomi skill is read or four commands have run.
+  const until=codex&&config.maxTurns?text=>{const calls=codexEvents(text.slice(0,text.lastIndexOf('\n')+1),workspace).events.flatMap(e=>e.type==='assistant'?e.message.content:[]);return calls.some(c=>c.name==='Skill')||calls.filter(c=>c.name==='Bash').length>=4;}:undefined;
   const start=Date.now();
   fs.mkdirSync(output,{recursive:true});
-  const execution=await invoke(process.env.NOMI_CLAUDE || 'claude',args,{cwd:workspace,env,output});
+  const execution=await invoke(command,[...prefix,...args],{cwd:workspace,env:codex?process.env:env,output,until});
   fs.mkdirSync(output,{recursive:true}); fs.writeFileSync(path.join(output,'transcript.jsonl'),execution.stdout);fs.writeFileSync(path.join(output,'stderr.txt'),execution.stderr);
-  const parsed=parseTranscript(execution.stdout);
+  const parsed=codex?codexEvents(execution.stdout,workspace):parseTranscript(execution.stdout);
+  // Trigger runs are cut short on purpose (turn limit, or the early stop above); that is not a failed run.
+  const cut=config.maxTurns&&(/error_max_turns/.test(parsed.error||'')||(codex&&until(execution.stdout)));
+  if(cut){parsed.error=null;execution.code=0;execution.timedOut=false;}
   const init=parsed.events.find(e=>e.type==='system'&&e.subtype==='init');
-  const result={case:path.basename(caseDir),suite:path.basename(path.dirname(caseDir)),arm,workspace,pluginRoot,effort,install,hostVersion:spawnSync(process.env.NOMI_CLAUDE||'claude',['--version'],{encoding:'utf8',windowsHide:true}).stdout?.trim(),model,date:new Date().toISOString(),cost:parsed.cost,error:parsed.error,ms:Date.now()-start,turns:parsed.turns,usage:parsed.usage,skills:init?.skills,plugins:init?.plugins,tools:init?.tools};
+  const result={case:name,suite,arm,host,workspace,pluginRoot,effort,install:codex?'project':install,expect:config.expect,browserSandbox:process.env.NOMI_BROWSER_NO_SANDBOX==='1'?'off':'on',hostVersion:spawnSync(command,[...prefix,'--version'],{encoding:'utf8',windowsHide:true}).stdout?.trim(),model,date:new Date().toISOString(),cost:parsed.cost,error:parsed.error,ms:Date.now()-start,turns:parsed.turns,usage:parsed.usage,skills:init?.skills,plugins:init?.plugins,tools:init?.tools};
   if(execution.code!==0 || execution.timedOut) result.error ||= execution.timedOut?'host timed out':`host exited ${execution.code}: ${execution.stderr.slice(-500)}`;
+  if(!result.error && codex && arm!=='with' && parsed.events.some(e=>e.message?.content?.some(c=>c.name==='Skill')))result.error='baseline contaminated by Nomi';
   // Match names, not paths: every copied plugin lives in a nomi-eval-* temp folder.
   if(!result.error && arm!=='with' && (init?.skills||[]).some(n=>/(?:^|:)nomi$/.test(n))||(!result.error && arm!=='with' && (init?.plugins||[]).some(p=>p.name==='nomi')))result.error='baseline contaminated by Nomi';
   if(!result.error) {
     result.behavior=transcriptGrade(parsed.events,temp);
     result.regex=(config.regex||[]).filter(rule=>!rule.source).map(rule=>({id:rule.id,pass:fs.existsSync(path.join(workspace,rule.file))&&gradeRegex(fs.readFileSync(path.join(workspace,rule.file),'utf8'),rule)}));
-    try {
+    if(config.render!==false) try { // routing cases produce no page: "render": false skips the neutral render
       const render=await observe(path.join(workspace,config.target||'index.html'),{cwd:workspace});
       result.render=render.report;
       result.regex.push(...(config.regex||[]).filter(rule=>rule.source==='renderedCopy').map(rule=>({id:rule.id,pass:render.report.viewports.every(v=>gradeRegex(v.census.copy,rule))})));
@@ -245,7 +297,8 @@ async function runOne(caseDir,arm,cap,output,model,{pluginRoot=ROOT,effort='low'
   return result;
 }
 async function main() {
-  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},'plugin-root':{type:'string'},install:{type:'string',default:'plugin'},label:{type:'string'},effort:{type:'string',default:'low'},ceiling:{type:'string',default:'25'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},'retry-errors':{type:'boolean'}}});
+  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},'plugin-root':{type:'string'},install:{type:'string',default:'plugin'},label:{type:'string'},effort:{type:'string',default:'low'},ceiling:{type:'string',default:'25'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},host:{type:'string',default:'claude'},'retry-errors':{type:'boolean'}}});
+  if(!['claude','codex'].includes(opts.host))throw new Error('--host must be claude or codex');
   if(!opts.suite)throw new Error('--suite required (or judge)');
   const output=path.resolve(opts.out);fs.mkdirSync(output,{recursive:true});
   const ledgerFile=path.join(output,'ledger.json');
@@ -254,19 +307,24 @@ async function main() {
   if(opts.suite==='regrade') { // re-score saved transcripts and workspaces after a grader fix; no model calls
     for(const entry of ledger.filter(e=>!e.error&&e.key.startsWith(`${opts.model}/`))) {
       const dir=entry.output||path.join(output,entry.key), file=path.join(dir,'result.json'), result=JSON.parse(fs.readFileSync(file,'utf8'));
-      result.behavior=transcriptGrade(parseTranscript(fs.readFileSync(path.join(dir,'transcript.jsonl'),'utf8')).events,path.dirname(result.workspace));
+      const text=fs.readFileSync(path.join(dir,'transcript.jsonl'),'utf8');
+      result.behavior=transcriptGrade((result.host==='codex'?codexEvents(text,result.workspace):parseTranscript(text)).events,path.dirname(result.workspace));
       fs.writeFileSync(file,JSON.stringify(result,null,2));console.log(JSON.stringify({key:entry.key,...result.behavior}));
     }
     return;
   }
-  const cases=opts.suite.split(',').flatMap(name=>{const suite=path.join(ROOT,'evals','cases',name);return fs.readdirSync(suite).filter(name=>!opts.case||opts.case.split(',').includes(name)).map(name=>path.join(suite,name));});
+  if(opts.suite==='trigger-report') { // recall and false-trigger rate from saved trigger runs; no model calls
+    const results=ledger.filter(e=>!e.error&&e.key.startsWith(`${opts.model}/`)&&e.key.includes('trigger/')).map(e=>JSON.parse(fs.readFileSync(path.join(e.output,'result.json'),'utf8'))).map(r=>({case:r.case,expect:r.expect,...r.behavior}));
+    console.log(JSON.stringify({model:opts.model,runs:results.length,...triggerSummary(results)},null,2));return;
+  }
+  const cases=opts.suite.split(',').flatMap(name=>loadCases(name,opts.case?.split(',')));
   const arms=opts.arm==='both'?['without','with']:[opts.arm];
   if(arms.some(a=>!['with','without','competitor'].includes(a)))throw new Error('arm must be with, without, competitor or both');
   const runs=Number(opts.runs);if(!Number.isInteger(runs)||runs<1||runs>3)throw new Error('runs must be 1–3');
-  for(const dir of cases)readCase(dir); // preflight every regex before paid calls
-  loadAuth(); // no cost reservation or workspace if authentication is unavailable
+  // loadCases has already checked every regex, before any paid call
+  if(opts.host==='claude')loadAuth(); // no cost reservation or workspace if authentication is unavailable
   for(const dir of cases)for(let run=1;run<=runs;run++)for(const arm of arms) {
-    const scope=`${opts.label?`${opts.label}/`:''}${path.basename(path.dirname(dir))}/${path.basename(dir)}`; // a label keeps variants of one case apart
+    const scope=`${opts.label?`${opts.label}/`:''}${dir.suite}/${dir.name}`; // a label keeps variants of one case apart
     const key=evalIdentity(scope,arm,run,opts.model);
     const prior=ledger.find(r=>r.key===key);
     if(prior && !prior.error)continue;
@@ -277,7 +335,7 @@ async function main() {
     const pending={key,output:runOutput,cost:null,error:'run interrupted before result'};
     ledger.push(pending);fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
     console.log(`START ${key} (cap $${cap})`);
-    const result=await runOne(dir,arm,cap,runOutput,opts.model,{pluginRoot:path.resolve(opts['plugin-root']||ROOT),effort:opts.effort,install:opts.install});
+    const result=await runOne(dir,arm,cap,runOutput,opts.model,{pluginRoot:path.resolve(opts['plugin-root']||ROOT),effort:opts.effort,install:opts.install,host:opts.host});
     Object.assign(pending,{cost:result.cost,error:result.error});fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
     console.log(JSON.stringify({key,cost:result.cost,error:result.error,behavior:result.behavior,defects:result.defects}));
     if(result.error)throw new Error(`eval failed: ${result.error}; inspect error before resuming`);

@@ -7,6 +7,9 @@ import { CDP } from './cdp.mjs';
 
 // Absolute path: a host's reduced PATH must not silently leave a browser tree running.
 const TASKKILL = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe');
+// A host that already confines this process (a restricted-token agent sandbox) cannot nest Chromium's own sandbox.
+// Opt-in only, set by the user for local pages; the capture report notes it.
+const NO_SANDBOX = process.env.NOMI_BROWSER_NO_SANDBOX === '1' ? ['--no-sandbox'] : [];
 const FALLBACK ='Set NOMI_BROWSER to a Chromium executable, or run nomi probe print web with a host browser tool; otherwise report not visually verified.';
 export function findBrowser(env = process.env) {
   if (env.NOMI_BROWSER) {
@@ -49,7 +52,7 @@ export async function launchBrowser({ executable = findBrowser(), transport = 'a
     const interrupt = () => { close().finally(() => process.exit(130)); };
     process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt);
     try {
-      const args = ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', `--user-data-dir=${profile}`, mode === 'pipe' ? '--remote-debugging-pipe' : '--remote-debugging-port=0', 'about:blank'];
+      const args = ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', ...NO_SANDBOX, `--user-data-dir=${profile}`, mode === 'pipe' ? '--remote-debugging-pipe' : '--remote-debugging-port=0', 'about:blank'];
       child = spawn(executable, args, { windowsHide: true, detached: process.platform !== 'win32', stdio: mode === 'pipe' ? ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] : ['ignore', 'ignore', 'pipe'] });
       let launchError;
       child.on('error', e => { launchError = e; });
