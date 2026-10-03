@@ -1,0 +1,14 @@
+{
+  "tier": "Build",
+  "render": false,
+  "regex": [
+    {
+      "id": "lore-written",
+      "file": "lore.md",
+      "pattern": "\\S",
+      "expect": true,
+      "compliant": "The Tide Readers began as lighthouse clerks.",
+      "violating": " "
+    }
+  ]
+}
