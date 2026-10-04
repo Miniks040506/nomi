@@ -214,7 +214,7 @@ export function invoke(command,args,{cwd,env,timeout=300000,output,until}) {
   return new Promise(resolve=>{
     const child=spawn(command,args,{cwd,env,windowsHide:true,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe']});
     let stdout='',stderr='',timedOut=false;
-    const stop=()=>{if(!child.pid)return;if(process.platform==='win32')spawnSync(path.join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore',timeout:2000});else {try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
+    const stop=()=>{if(!child.pid)return;if(process.platform==='win32')spawnSync(path.join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore',timeout:15000});else {try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
     const timer=setTimeout(()=>{timedOut=true;stop();},timeout);
     process.once('SIGINT',stop);process.once('SIGTERM',stop);
     const finish=result=>{clearTimeout(timer);process.off('SIGINT',stop);process.off('SIGTERM',stop);resolve(result);};
@@ -267,7 +267,7 @@ async function runOne({suite,name,prompt,config},arm,cap,output,model,{pluginRoo
   const until=codex&&config.maxTurns?text=>{const calls=codexEvents(text.slice(0,text.lastIndexOf('\n')+1),workspace).events.flatMap(e=>e.type==='assistant'?e.message.content:[]);return calls.some(c=>c.name==='Skill')||calls.filter(c=>c.name==='Bash').length>=4;}:undefined;
   const start=Date.now();
   fs.mkdirSync(output,{recursive:true});
-  const execution=await invoke(command,[...prefix,...args],{cwd:workspace,env:codex?process.env:env,output,until});
+  const execution=await invoke(command,[...prefix,...args],{cwd:workspace,env:codex?process.env:env,output,until,timeout:codex?600000:300000});
   fs.mkdirSync(output,{recursive:true}); fs.writeFileSync(path.join(output,'transcript.jsonl'),execution.stdout);fs.writeFileSync(path.join(output,'stderr.txt'),execution.stderr);
   const parsed=codex?codexEvents(execution.stdout,workspace):parseTranscript(execution.stdout);
   // Trigger runs are cut short on purpose (turn limit, or the early stop above); that is not a failed run.

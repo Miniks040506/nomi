@@ -43,11 +43,11 @@
       ],
       "activation": "\"name\":\"Skill\",\"input\":\\{\"skill\":\"(?:nomi:)?nomi(?:-web)?\"",
       "isolation": "Fresh CLAUDE_CONFIG_DIR holding only an access token; --setting-sources project; no MCP servers",
-      "status": "D",
-      "version": null,
-      "verified": null,
-      "evidence": null,
-      "blocker": null
+      "status": "L",
+      "version": "2.1.286",
+      "verified": "2026-10-01",
+      "evidence": "plugin and project-folder installs: skills listed, web skill activated, core CLI observe ran from the project, capture opened (evals/reports/migration-hybrid.md)",
+      "blocker": "2026-10-03 rerun not possible: CLI login expired"
     },
     {
       "id": "codex",
@@ -76,10 +76,10 @@
       ],
       "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
       "isolation": "Normal login and user config (--ignore-user-config makes exec reject every command as blocked by policy); --ignore-rules --ephemeral, memories disabled. User-level skills in ~/.agents/skills stay visible to both arms",
-      "status": "D",
-      "version": null,
-      "verified": null,
-      "evidence": null,
+      "status": "L",
+      "version": "0.159.3",
+      "verified": "2026-10-03",
+      "evidence": "project-folder install: skill read, doctor ran (domains web), observe captured in the project after the agent set NOMI_BROWSER_NO_SANDBOX=1, image read, subagents reported (evals/reports/hosts-2026-10-03.md)",
       "blocker": null
     },
     {
@@ -105,7 +105,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null
+      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
     },
     {
       "id": "opencode",
@@ -128,7 +128,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null
+      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
     },
     {
       "id": "gemini",
@@ -152,7 +152,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null
+      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
     },
     {
       "id": "antigravity",
@@ -175,7 +175,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null
+      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
     },
     {
       "id": "openclaw",
@@ -202,7 +202,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null,
+      "blocker": "2026.5.22: skills listed as ready from ~/.agents/skills, but no agent run: bundled codex plugin fails to load and no provider keys are set",
       "note": "project path is relative to the OpenClaw agent workspace (~/.openclaw/workspace by default), not the shell folder: install with --dir <workspace> or --scope user"
     },
     {
@@ -226,7 +226,7 @@
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": null
+      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
     }
   ]
 }

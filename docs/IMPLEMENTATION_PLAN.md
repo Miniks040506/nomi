@@ -10,7 +10,7 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 |---|---|---|---|
 | 1 | Nomi Core: direction, taste, critique, Project DNA | DONE | — |
 | 2 | Observation engine + Nomi Web | DONE | 1 |
-| 3 | Multi-host packaging and verification | NOT STARTED | 1, 2 |
+| 3 | Multi-host packaging and verification | IN PROGRESS (built; 2 of 8 hosts verified; AC2, AC4, AC6 open) | 1, 2 |
 | 4 | Nomi Motion | NOT STARTED | 2 |
 | 5 | Nomi 3D | NOT STARTED | 2 |
 | 6 | Nomi Game | NOT STARTED | 2, 4 |
@@ -254,7 +254,7 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 
 ## Phase 3 — Multi-host packaging and verification
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS (2026-10-03). Deliverables built and tested; completion is blocked by host access, not by code (see Outcome)
 
 **Objective.** Nomi installs, activates and runs its scripts on all eight target hosts through their real mechanisms, and every compatibility claim is backed by recorded evidence.
 
@@ -287,7 +287,35 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 - If one broad description hurts domain recall, apply D1's reversible path (generated per-domain entry skills) only with trigger-eval evidence.
 - No hooks unless D9 was triggered in Phase 2.
 
-**Outcome:** _pending_
+**Outcome so far** (2026-10-03, full evidence in `evals/reports/phase-3.md` and `evals/reports/hosts-2026-10-03.md`). Not DONE: three acceptance criteria are open.
+- Built:
+  - Manifests: `plugin.json` (Agent Plugins v1), `.claude-plugin/plugin.json` + `marketplace.json`, `gemini-extension.json`, `.agents/plugins/marketplace.json`. Vendored schema in `tools/schemas/`.
+  - `adapters/hosts.json`; the eight placeholder READMEs are deleted.
+  - `tools/install.mjs` (project and user scope, idempotent, `--dry-run`, `--uninstall`) and `tools/verify-hosts.mjs` (the `host-smoke` suite).
+  - Runner: Codex driver (`--host codex`), prompt-list suites, `trigger` suite (30 prompts) and `trigger-report`.
+  - `tools/check.mjs`: manifest consistency, schema validation, INTEGRATIONS status rows equal to `hosts.json`.
+  - CI workflow for Windows and Linux (never run: nothing pushed).
+- Acceptance criteria:
+  - AC1 met: Claude Code `L` (2.1.286, evidence of 2026-10-01), Codex `L` (0.159.3, 2026-10-03); six hosts `D`, each with its blocker.
+  - AC2 **not met**: 2 of 5 required hosts. Gemini CLI, OpenCode, Hermes, Cursor `agent` and `agy` are not installed and need signed-in accounts; OpenClaw 2026.5.22 lists the skills but cannot start an agent run.
+  - AC3 partly: `claude plugin validate .` passes and `plugin.json` validates; the Gemini link test needs Gemini CLI.
+  - AC4 met on Codex (recall 15/15, false trigger 1/15, one run per prompt); **not run on Claude Code** (CLI login expired).
+  - AC5 met on Windows (tests); Linux not run in this session.
+  - AC6 **not met**: one Codex baseline run (2/2 fixed), then the Codex usage limit.
+- Tests: Windows 87/87 on final code (Edge); `check` clean. A harness hang under machine load was fixed (the timeout kill had a 2 s budget). WSL2 not run.
+- Decisions and deviations:
+  - D17: opt-in `NOMI_BROWSER_NO_SANDBOX=1` for local targets, because Chromium cannot start inside Codex's Windows sandbox. In the verification run the agent found and set it itself. **Needs the user's confirmation or reversal.**
+  - Codex runs keep the user config: `--ignore-user-config` rejects every command.
+  - `host-smoke` is `tools/verify-hosts.mjs`, not a second runner suite; trigger prompts live in one `prompts.json`, not 30 case folders.
+  - Trigger and smoke drivers exist for Claude Code and Codex only; the other six hosts get the generic smoke driver from `hosts.json`, untested because none could run.
+  - No description tuning was needed on Codex. On Codex the model reads both `SKILL.md` files for most web prompts.
+- Spend: $0 of $25 (no Claude Code calls); Codex is plan-billed, about 1.6M input tokens.
+- To finish the phase (in this order):
+  1. User signs in to Claude Code (`claude`, `/login`), then: `node tools/verify-hosts.mjs --record` and the Claude Code trigger suite (about $1–2).
+  2. After the Codex limit resets: `web-seeded` A/B with `--retry-errors` (17 runs; may need more than one usage window).
+  3. User installs and signs in to at least three of: Gemini CLI, OpenCode, Hermes, Cursor `agent`, Antigravity, or repairs OpenClaw; then `verify-hosts --record` and update the INTEGRATIONS rows.
+  4. Linux: approve the portable toolchain download for WSL2, or push and read the first CI run.
+  5. Close or carry U2, U4, U5, U7, U8, U11.
 
 ---
 
@@ -508,7 +536,7 @@ Why not stop at 1–3: direction prompts and static web anti-pattern detection a
 
 ## Integration uncertainty
 
-The host questions still open (U1–U10) are tracked in INTEGRATIONS §6 and closed in Phase 3. The ones most likely to change the design: U1 (can every host resolve the skill's own script path?), U3 (Codex sandbox versus launching a browser), and U2 (duplicate listings when two folders are installed).
+The host questions (U1–U12) are tracked in INTEGRATIONS §6 with their Phase 3 findings: U1, U3, U10 and U12 are resolved for Claude Code and Codex; the rest wait for hosts that could not be run. The ones most likely to change the design: U1 (can every host resolve the skill's own script path?), U3 (Codex sandbox versus launching a browser), and U2 (duplicate listings when two folders are installed).
 
 ## Where Nomi could duplicate the base model (and the rule for each)
 
@@ -532,14 +560,15 @@ Budgets and their enforcement are in ARCHITECTURE §12. Watch in particular:
 
 ## Reversible architecture decisions
 
-Recorded with triggers in ARCHITECTURE §14 (D1–D16; D14 supersedes D1). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
+Recorded with triggers in ARCHITECTURE §14 (D1–D17; D14 supersedes D1). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
 
 ## Open decisions (user)
 
 | Decision | Needed by | Default if unanswered |
 |---|---|---|
 | License | Phase 8 (manifests may omit it earlier) | None; release is blocked without one |
-| GitHub owner and repo name (used in marketplace entries and install docs) | Phase 3 | Docs use `<owner>/<repo>` |
+| GitHub owner and repo name (used in marketplace entries and install docs) | Phase 3 | Resolved from the git remote: `Miniks040506/nomi` |
+| Keep or remove `NOMI_BROWSER_NO_SANDBOX` (D17) | Phase 3 completion | Kept, local targets only |
 | `git init` before Phase 1 | Phase 1 | Recommended, not required |
 | Eval spend ceiling per phase | Phase 1 | $25 |
 | Acceptable judge models | Phase 2 | Cross-vendor: Codex judges Claude Code outputs and the reverse |
@@ -561,3 +590,4 @@ Recorded with triggers in ARCHITECTURE §14 (D1–D16; D14 supersedes D1). The o
 - 2026-09-27: Phase 1 DONE. D13 reversed (DNA pointer in AGENTS.md/CLAUDE.md); skill description rewritten after the continuity eval; U11 added to INTEGRATIONS.
 - 2026-10-01: Architecture migration DONE. Hybrid skills (core `nomi` + `nomi-web`) replace the single skill (D14–D16); activation on existing-page edits 27/27 and observation 27/27 in the migration eval; later phases deliver `skills/nomi-<domain>/SKILL.md`; U12 added to INTEGRATIONS.
 - 2026-09-30: Phase 2 DONE after the review and completion run. The seeded gate was recalibrated (baseline at ceiling; user decision); golden preference 77.8%; competitor reported. Seeded v1 and v2 archived; seeded v3 is the current suite.
+- 2026-10-03: Phase 3 IN PROGRESS. Packaging, installer, verifier, Codex driver and trigger suite built; Claude Code and Codex at `L`; D17 added; AC2, AC4 (Claude Code) and AC6 blocked by host access (logins, installs, Codex usage limit).

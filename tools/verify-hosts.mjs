@@ -96,7 +96,7 @@ async function main() {
     '| Host | Version | Installed to | Activated | doctor ran | Captured | Run in project | Read image | Subagents | Seconds | Result |',
     '|---|---|---|---|---|---|---|---|---|---|---|',
     ...results.map((r) => r.present
-      ? `| ${r.host} | ${r.version} | ${r.installed.map((d) => `\`${d}\``).join(' ')} | ${yes(r.activated)} | ${yes(r.doctor)} | ${yes(r.observed)} | ${yes(r.inProject)} | ${yes(r.image)} | ${yes(r.subagents)} | ${r.seconds} | ${r.pass ? 'pass' : `fail: ${r.blocker}`} |`
+      ? `| ${r.host} | ${r.version} | ${r.installed.map((d) => `\`${d}\``).join(' ')} | ${yes(r.activated)} | ${yes(r.doctor)} | ${yes(r.observed)} | ${yes(r.inProject)} | ${yes(r.image)} | ${yes(r.subagents)} | ${r.seconds ?? "—"} | ${r.pass ? 'pass' : `fail: ${r.blocker}`} |`
       : `| ${r.host} | — | — | — | — | — | — | — | — | — | not run: ${r.blocker} |`),
     '',
   ];
