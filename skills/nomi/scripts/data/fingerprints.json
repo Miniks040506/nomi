@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-28",
+  "updated": "2026-10-04",
   "purpose": "Questions for critique; the brief and DNA can deliberately choose any match.",
   "entries": [
     {"id":"unlock","pattern":"\\bunlock (?:your |the )?(?:potential|possibilities)\\b","question":"Does this promise name an action or outcome specific to this product?"},
@@ -7,5 +7,10 @@
     {"id":"seamless","pattern":"\\bseamless(?:ly)?\\b","question":"Which observed transition earns this claim?"},
     {"id":"reimagine","pattern":"\\b(?:reimagine|revolutionize|revolutionise)\\b","question":"Is the claimed change visible in the artifact or only in the copy?"},
     {"id":"all-in-one","pattern":"\\ball.in.one (?:solution|platform)\\b","question":"Does the composition show the specific jobs this combines?"}
+  ],
+  "motion": [
+    {"id":"uniform-timing","question":"Is one duration and easing for everything a decision, or the value that came first?"},
+    {"id":"same-entrance","question":"What should the eye follow first, and does every element need to enter?"},
+    {"id":"infinite","question":"What is this loop telling the visitor, and when does it stop?"}
   ]
 }

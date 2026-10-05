@@ -21,17 +21,20 @@ export function createRun(cwd = process.cwd()) {
   return { id, dir, root };
 }
 export function summary(report) {
-  const lines = [`Run ${report.id} · ${report.kind}`, report.target || '', ...report.viewports.map(v => `${v.width}x${v.height}: ${v.census?.type.families.length ?? '?'} declared families, ${v.census?.type.sizes.length ?? '?'} sizes; ${v.findings?.length ?? 0} findings`), ...report.findings.slice(0, 35).map(f => `${f.severity} ${f.code} ${f.node || ''}: ${f.message}`)];
-  if (report.findings.length > 35) lines.push(`${report.findings.length - 35} more findings in report.json`);
-  lines.push(...report.notes.slice(0, 8).map(n => `Note: ${n}`), 'Open images:', ...report.images.slice(0, 4).map(p => `  ${p}`));
-  return lines.filter(Boolean).slice(0, 60).join('\n') + '\n';
+  const head = [`Run ${report.id} · ${report.kind}`, report.target || '', ...report.viewports.map(v => `${v.width}x${v.height}: ${v.census?.type.families.length ?? '?'} declared families, ${v.census?.type.sizes.length ?? '?'} sizes; ${v.findings?.length ?? 0} findings`), ...(report.overview || [])].filter(Boolean);
+  const tail = [...report.notes.slice(0, 8).map(n => `Note: ${n}`), 'Open images:', ...report.images.slice(0, 4).map(p => `  ${p}`)];
+  // Findings take the room that is left, so the image list is never cut off.
+  const room = Math.max(3, Math.min(35, 59 - head.length - tail.length));
+  const lines = [...head, ...report.findings.slice(0, room).map(f => `${f.severity} ${f.code} ${f.node || ''}: ${f.message}`)];
+  if (report.findings.length > room) lines.push(`${report.findings.length - room} more findings in report.json`);
+  return [...lines, ...tail].slice(0, 60).join('\n') + '\n';
 }
 export function saveRun(run, report) {
   fs.writeFileSync(path.join(run.dir, 'report.json'), JSON.stringify(report, null, 2));
   fs.writeFileSync(path.join(run.dir, 'summary.md'), summary(report));
   const owned = fs.readdirSync(run.root, { withFileTypes: true }).filter(e => {
     if(!e.isDirectory() || !ID.test(e.name))return false;
-    try {const r=JSON.parse(fs.readFileSync(path.join(run.root,e.name,'report.json'),'utf8'));return r.nomi===1&&r.id===e.name&&['web','diff'].includes(r.kind)&&Array.isArray(r.viewports)&&Array.isArray(r.images)&&Array.isArray(r.findings)&&Array.isArray(r.notes);}catch{return false;}
+    try {const r=JSON.parse(fs.readFileSync(path.join(run.root,e.name,'report.json'),'utf8'));return r.nomi===1&&r.id===e.name&&['web','motion','diff'].includes(r.kind)&&Array.isArray(r.viewports)&&Array.isArray(r.images)&&Array.isArray(r.findings)&&Array.isArray(r.notes);}catch{return false;}
   }).map(e => e.name).sort();
   for (const id of owned.slice(0, -10)) fs.rmSync(path.join(run.root, id), { recursive: true, force: true, maxRetries: 3 });
 }

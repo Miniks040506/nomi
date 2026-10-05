@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marsh Road Physio — book a visit</title>
+<style>
+:root{--ink:#16202a;--paper:#fbfaf7;--teal:#0f6b6b;--line:#c9c4b8}
+*{box-sizing:border-box}
+body{margin:0;padding:28px;font:17px/1.5 Verdana,sans-serif;color:var(--ink);background:var(--paper);max-width:640px}
+h1{font-size:26px;margin:0 0 20px}
+.step{border-top:1px solid var(--line)}
+.step-btn{display:block;width:100%;text-align:left;font:inherit;font-weight:700;padding:16px 8px;color:var(--ink);background:transparent;border:0;cursor:pointer;transition:all 200ms ease-out}
+.step-btn:hover{background:#eef4f3;padding-left:16px}
+.step-btn:focus-visible{outline:3px solid var(--teal);outline-offset:-3px}
+.panel{display:none;padding:0 8px 18px}
+.step.open .panel{display:block;animation:reveal 200ms ease-out both}
+@keyframes reveal{from{opacity:0}}
+label{display:block;margin:8px 0 4px}
+input,select{font:inherit;padding:8px;border:1px solid var(--ink);width:100%;max-width:320px}
+#saved{position:fixed;right:16px;top:16px;display:flex;align-items:center;gap:10px;padding:12px 16px;color:#fff;background:var(--teal);animation:drop 200ms ease-out both}
+@keyframes drop{from{top:-70px}to{top:16px}}
+#check{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:30;animation:draw 900ms ease-out 200ms both}
+@keyframes draw{from{stroke-dashoffset:30}to{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<h1>Book a visit</h1>
+<div id="saved" role="status"><svg id="check" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l6 6L20 6"/></svg>Your draft from yesterday is back: knee, Thursday 8 October</div>
+<section class="step open"><button class="step-btn" type="button" aria-expanded="true">1 · What hurts</button>
+  <div class="panel"><label for="area">Area</label><select id="area"><option>Lower back</option><option selected>Knee</option><option>Shoulder</option></select></div></section>
+<section class="step"><button class="step-btn" type="button" aria-expanded="false">2 · When</button>
+  <div class="panel"><label for="day">Day</label><input id="day" type="date" value="2026-10-08"></div></section>
+<section class="step"><button class="step-btn" type="button" aria-expanded="false">3 · Your details</button>
+  <div class="panel"><label for="name">Name</label><input id="name" autocomplete="name"></div></section>
+<script>
+// The server sends this page only to visitors with a saved draft, already filled in, together with the notice.
+for (const button of document.querySelectorAll('.step-btn')) button.addEventListener('click', () => {
+  const open = button.parentElement.classList.toggle('open');
+  button.setAttribute('aria-expanded', open);
+});
+</script>
+</body>
+</html>

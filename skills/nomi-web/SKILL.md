@@ -43,6 +43,7 @@ node <core>/scripts/nomi.mjs observe <url-or-index.html>
 - **Open the printed contact sheet and the individual image for any region you judge.** Read `report.json` when a summary truncates findings. Exit 1 means findings were recorded; it is not a failed capture.
 - Inspect lower sections with `--full`; use `--viewport 390x844` for a focused follow-up, `--dark` or `--reduced-motion` when relevant. Loading is bounded; a settle warning means the captured state may be incomplete.
 - A capture is one state. Use the host's browser interaction tools to inspect menus, forms and other states the task changes. The keyboard pass only checks detected indicators on sampled controls.
+- Animation, transitions and hover or press states are not in a static capture. When the task adds or changes any, also run `observe <target> --motion` before and after, open `load.png`, and follow `<core>/references/motion.md` (interaction steps, lenses, moves).
 - If launch fails, run `node <core>/scripts/nomi.mjs probe print web` and execute its expression through a host browser tool, then capture and open that browser's images. With no browser access, say **not visually verified** and cite code only.
 
 ## Critique lenses

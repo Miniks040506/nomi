@@ -178,3 +178,46 @@ test('behaviour signals name the skills used and whether the DNA and the core we
   const args=hostArgs('Build','claude-sonnet-5-5',1,null,'medium','project');
   assert.equal(args[args.indexOf('--effort')+1],'medium');assert.equal(args[args.indexOf('--setting-sources')+1],'project');
 });
+
+test('motion cases: a defect is fixed only while load motion survives, decoys must keep running, and quoted timings must be measured', async t => {
+  const { gradeMotion, transcriptGrade, loadCases }=await harness();
+  const anim=(name,over={})=>({name,step:0,duration:240,delay:0,iterations:1,...over});
+  const report=(animations,codes)=>({motion:{animations,transitions:[{durations:[120]}],load:{settleMs:400}},findings:codes.map(code=>({code,node:'#a'}))});
+  const config={minLoad:2,defects:[{id:'reduced',code:'motion.reduced-motion'},{id:'bar',code:'motion.layout-property'}],decoys:[{id:'pulse',match:{name:'pulse',iterations:'infinite'}}]};
+  assert.deepEqual(gradeMotion(report([anim('settle'),anim('pulse',{iterations:'infinite'})],['motion.layout-property']),config),{defects:[{id:'reduced',fixed:true},{id:'bar',fixed:false}],decoys:[{id:'pulse',intact:true}]});
+  assert.deepEqual(gradeMotion(report([],[]),config),{defects:[{id:'reduced',fixed:false},{id:'bar',fixed:false}],decoys:[{id:'pulse',intact:false}]},'deleting every animation fixes nothing');
+
+  // "Everything enters at once" is fixed by a row-by-row entrance, even when one row still holds six elements.
+  const rows={motion:{animations:[anim('enter'),anim('enter')],transitions:[],load:{}},findings:[{code:'motion.fingerprint.same-entrance',count:6}]};
+  const all={...rows,findings:[{code:'motion.fingerprint.same-entrance',count:12}]};
+  const entrance={minLoad:2,defects:[{id:'same-entrance',code:'motion.fingerprint.same-entrance',minCount:7}]};
+  assert.deepEqual([gradeMotion(rows,entrance).defects[0].fixed,gradeMotion(all,entrance).defects[0].fixed],[true,false]);
+
+  const seeded=loadCases('motion-seeded'), golden=loadCases('motion-golden');
+  assert.deepEqual([seeded.length,golden.length],[3,2]);
+  assert.ok([...seeded,...golden].every(c=>c.config.observe==='motion'));
+  assert.ok(seeded.every(c=>fs.existsSync(new URL(`../evals/fixtures/${c.config.fixture}/.nomi/dna.md`,import.meta.url))&&c.config.defects.length>=2&&(c.config.decoys||c.config.regex).length>=1));
+
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-motion-grade-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const id='1790585771830-51650ea5-37fb-4c9c-9944-81202b454a89', dir=path.join(root,'project','.nomi','runs',id);
+  fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify({nomi:1,id,kind:'motion',viewports:[],findings:[],...report([anim('settle',{delay:40})],[])}));
+  const events=[{type:'assistant',message:{content:[{type:'tool_use',id:'o',name:'Bash',input:{command:'node skills/nomi/scripts/nomi.mjs observe index.html --motion'}}]}},
+    {type:'user',message:{content:[{type:'tool_result',tool_use_id:'o',content:`Run ${id} · motion`}]}},
+    {type:'assistant',message:{content:[{type:'text',text:'Rows take 240 ms, 40 ms apart, and the load settles after 400 ms. The banner eases over 350 ms.'}]}}];
+  const b=transcriptGrade(events,root);
+  assert.deepEqual([b.observed,b.timingsQuoted,b.timingsMeasured],[true,4,3],'350 ms was never measured');
+});
+
+test('a Codex observe left running as a background session counts with the runs it wrote before the agent finished', async t => {
+  const { codexEvents, transcriptGrade }=await harness();
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-codex-bg-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const cwd=path.join(root,'project'), mine='1790585771830-51650ea5-37fb-4c9c-9944-81202b454a89', neutral='1790585779999-51650ea5-37fb-4c9c-9944-81202b454a89';
+  for(const id of [mine,neutral]){const dir=path.join(cwd,'.nomi','runs',id);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify({nomi:1,id,kind:'motion',viewports:[],findings:[],motion:{animations:[],transitions:[],load:{settleMs:null}}}));}
+  const command='pwsh -Command \'node .agents/skills/nomi/scripts/nomi.mjs observe index.html --motion\'';
+  const lines=[{type:'item.started',item:{id:'i4',type:'command_execution',command}},{type:'item.completed',item:{id:'m',type:'agent_message',text:'done'}},{type:'turn.completed',usage:{}}].map(l=>JSON.stringify(l)).join('\n');
+  const before=transcriptGrade(codexEvents(lines,cwd,1790585775000).events,root);
+  assert.equal(before.observed,true);
+  const bash=codexEvents(lines,cwd,1790585775000).events.flatMap(e=>e.type==='user'?e.message.content:[]);
+  assert.ok(!JSON.stringify(bash).includes(neutral),'the harness\'s own later render is not the agent\'s observation');
+  assert.equal(transcriptGrade(codexEvents(lines.replace('nomi.mjs observe','nomi.mjs doctor'),cwd,1790585775000).events,root).observed,false);
+});

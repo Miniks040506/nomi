@@ -1,0 +1,32 @@
+{
+  "fixture": "motion-seed-shop",
+  "tier": "Build",
+  "target": "index.html",
+  "observe": "motion",
+  "minLoad": 6,
+  "defects": [
+    {
+      "id": "same-entrance",
+      "code": "motion.fingerprint.same-entrance",
+      "minCount": 7
+    },
+    {
+      "id": "transition-all",
+      "code": "motion.transition-all"
+    },
+    {
+      "id": "reduced",
+      "code": "motion.reduced-motion"
+    }
+  ],
+  "regex": [
+    {
+      "id": "decoy-press",
+      "file": "index.html",
+      "pattern": ":active\\s*\\{[^}]*translateY\\((?:var\\(--press\\)|2px)\\)",
+      "expect": true,
+      "compliant": ".buy:active{transform:translateY(var(--press))}",
+      "violating": ".buy:active{transform:scale(.95)}"
+    }
+  ]
+}

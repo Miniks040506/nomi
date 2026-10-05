@@ -57,12 +57,20 @@ export function loadCases(suite,only) {
 }
 // Codex exec --json events in the shape the Claude graders read: commands become Bash calls, a read of a Nomi
 // SKILL.md becomes a Skill call (Codex activates a skill by reading it), and .md/.png paths become Read calls.
-export function codexEvents(stdout,cwd) {
+// Codex runs a slow command (a motion capture takes about 10 s) as a background session: the transcript then has its
+// item.started but no item.completed. Such an observe counts with the runs it left in the project before `before` (ms).
+export function codexEvents(stdout,cwd,before=Infinity) {
   let lines;
   try { lines=stdout.trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)); }
   catch { return {error:'invalid transcript JSON',cost:null,events:[]}; }
   const events=[]; let n=0;
   const call=(name,input,content,is_error=false)=>{const id=`c${n++}`;events.push({type:'assistant',message:{content:[{type:'tool_use',id,name,input}]}},{type:'user',message:{content:[{type:'tool_result',tool_use_id:id,is_error,content}]}});};
+  const completed=new Set(lines.filter(l=>l.type==='item.completed').map(l=>l.item?.id));
+  const backgrounded=lines.filter(l=>l.type==='item.started'&&l.item?.type==='command_execution'&&!completed.has(l.item.id)&&/nomi\.mjs["']?\s+(?:--json\s+)?observe\b/.test(l.item.command));
+  if(backgrounded.length) {
+    const runs=path.join(cwd,'.nomi','runs'), left=fs.existsSync(runs)?fs.readdirSync(runs).filter(id=>Number(id.split('-')[0])<before).join('\n'):'';
+    for(const {item} of backgrounded)call('Bash',{command:item.command},left);
+  }
   for(const {type,item} of lines) {
     if(type!=='item.completed'||!item)continue;
     if(item.type==='agent_message')events.push({type:'assistant',message:{content:[{type:'text',text:item.text||''}]}});
@@ -97,7 +105,7 @@ export function findReports(root) {
   const reports=new Map();
   for(const file of fs.readdirSync(root,{recursive:true})) {
     if(!/(?:^|[\\/])\.nomi[\\/]runs[\\/][^\\/]+[\\/]report\.json$/.test(file))continue;
-    try {const r=JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));if(r.nomi===1&&r.kind==='web'&&path.basename(path.dirname(file))===r.id)reports.set(r.id,{...r,dir:path.dirname(path.join(root,file))});}catch{/* not a report */}
+    try {const r=JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));if(r.nomi===1&&['web','motion'].includes(r.kind)&&path.basename(path.dirname(file))===r.id)reports.set(r.id,{...r,dir:path.dirname(path.join(root,file))});}catch{/* not a report */}
   }
   return reports;
 }
@@ -109,7 +117,7 @@ export function evidenceClaims(final,opened,reports) {
     if(/\b(?:did not|didn't|not (?:open|view|look|check|re-?open)|never|haven't|without (?:opening|looking))\b/i.test(sentence))continue;
     if(/\b(?:opened|looked at|viewed|checked|saw|inspected)\b[^.]*\b(?:screenshots?|captures?|images?|contact sheet)\b|\b(?:screenshots?|captures?|contact sheet)\b[^.]*\b(?:shows?|showed|looks?|looked|confirm(?:s|ed)?)\b/i.test(sentence)) {
       const widths=[...sentence.matchAll(/\b(\d{3,4})\s*(?:[×x]\s*\d{3,4}|px)\b/g)].map(m=>m[1]);
-      claims.push({kind:'image',text:sentence.slice(0,160),valid:opened.length>0&&widths.every(w=>opened.some(p=>/contact\.png$/i.test(p)||path.basename(p).includes(w)))});
+      claims.push({kind:'image',text:sentence.slice(0,160),valid:opened.length>0&&widths.every(w=>opened.some(p=>/(?:contact|load|interactions)\.png$/i.test(p)||path.basename(p).includes(w)))});
     }
     for(const m of sentence.matchAll(/\b(\d+)\s+findings?\b/gi)) claims.push({kind:'metric',text:sentence.slice(0,160),valid:reports.some(r=>r.findings.length===Number(m[1])||r.viewports.some(v=>v.findings.length===Number(m[1])))});
   }
@@ -130,7 +138,10 @@ export function transcriptGrade(events,root) {
   const looked=opened.filter(p=>reports.some(r=>p.startsWith(r.dir+path.sep)));
   const final=events.filter(e=>e.type==='assistant').at(-1)?.message?.content?.filter(c=>c.type==='text').map(c=>c.text).join('\n')||'';
   const claims=evidenceClaims(final,opened,reports);
-  return {activation:calls.some(c=>c.name==='Skill' && /nomi/.test(c.input?.skill||'')),skills:calls.filter(c=>c.name==='Skill').map(c=>c.input?.skill),firstAction:calls[0]?.name||null,coreRead:calls.some(c=>c.name==='Read'&&/[\\/]nomi[\\/]SKILL\.md$/.test(c.input?.file_path||'')&&successes.has(c.id)),dnaRead:calls.some(c=>c.name==='Read'&&/[\\/]\.nomi[\\/]dna\.md$/.test(c.input?.file_path||'')),observed:reports.length>0,looked:looked.length>0,opened:opened.length,claims:claims.length,validClaims:claims.filter(c=>c.valid).length,invalidClaims:claims.filter(c=>!c.valid).map(c=>c.text)};
+  // Motion critiques must quote what a run measured: ms values in the final report that a motion report of this session contains.
+  const measured=new Set(reports.filter(r=>r.kind==='motion').flatMap(r=>[r.motion.load.settleMs,...r.motion.animations.flatMap(a=>[a.duration,a.delay]),...r.motion.transitions.flatMap(x=>x.durations)]).filter(v=>v>0).map(v=>Math.round(v)));
+  const quoted=[...new Set([...final.matchAll(/\b(\d{2,5})\s*ms\b/g)].map(m=>Number(m[1])))];
+  return {timingsQuoted:quoted.length,timingsMeasured:quoted.filter(v=>measured.has(v)).length,activation:calls.some(c=>c.name==='Skill' && /nomi/.test(c.input?.skill||'')),skills:calls.filter(c=>c.name==='Skill').map(c=>c.input?.skill),firstAction:calls[0]?.name||null,coreRead:calls.some(c=>c.name==='Read'&&/[\\/]nomi[\\/]SKILL\.md$/.test(c.input?.file_path||'')&&successes.has(c.id)),dnaRead:calls.some(c=>c.name==='Read'&&/[\\/]\.nomi[\\/]dna\.md$/.test(c.input?.file_path||'')),observed:reports.length>0,looked:looked.length>0,opened:opened.length,claims:claims.length,validClaims:claims.filter(c=>c.valid).length,invalidClaims:claims.filter(c=>!c.valid).map(c=>c.text)};
 }
 export function pairwiseScore(first,swapped) {
   if([first,swapped].some(v=>!['A','B','tie'].includes(v)))throw new Error('judge vote must be A, B or tie');
@@ -141,6 +152,14 @@ export function gradeDefects(report,defects) {
     const seen=d.code==='web.contrast'?v.census.contrast.some(c=>c.node===d.node&&c.status==='pass'):d.code==='web.focus'?v.census.focus.nodes?.includes(d.node):v.census.nodes?.includes(d.node);
     return seen && (!d.content||v.census.copy.toLowerCase().includes(d.content.toLowerCase())) && !report.findings.some(f=>f.code===d.code&&f.node===d.node);
   })}));
+}
+// A defect may set minCount: a finding on fewer elements is not the seeded defect (a row entering together is not "everything at once").
+// Motion cases: a seeded defect is fixed when its finding code is gone from the neutral re-measurement while the page
+// still has load motion (deleting every animation is not a fix); a decoy is intact while a matching animation still runs.
+export function gradeMotion(report,config) {
+  const alive=report.motion.animations.filter(a=>a.step===0).length>=(config.minLoad??1);
+  return {defects:(config.defects||[]).map(d=>({id:d.id,fixed:alive&&!report.findings.some(f=>f.code===d.code&&(!d.node||f.node===d.node)&&(f.count??1)>=(d.minCount??1))})),
+    decoys:(config.decoys||[]).map(d=>({id:d.id,intact:report.motion.animations.some(a=>Object.entries(d.match).every(([k,v])=>a[k]===v))}))};
 }
 export function parseJudge(events,text) {
   const complete=events.findLast(e=>e.type==='turn.completed');
@@ -158,22 +177,24 @@ export function codexCommand(env=process.env) {
   const script=env.APPDATA&&path.join(env.APPDATA,'npm','node_modules','@openai','codex','bin','codex.js');
   return process.platform==='win32'&&script&&fs.existsSync(script)?[process.execPath,script]:['codex'];
 }
-async function judgePairs(output,ledgerFile,ledger,model,versus='without') {
-  const base=path.join(output,model,'web-golden');
+async function judgePairs(output,ledgerFile,ledger,model,versus='without',golden='web-golden',label='') {
+  const scope=label?label+"/"+golden:golden, base=path.join(output,model,...scope.split("/")); // a label selects the variant the runs were stored under
   for(const name of fs.readdirSync(base))for(let run=1;run<=3;run++) {
-    const results=['with',versus].map(arm=>evaluationResult(output,ledger,evalIdentity(`web-golden/${name}`,arm,run,model)));
+    const results=['with',versus].map(arm=>evaluationResult(output,ledger,evalIdentity(`${scope}/${name}`,arm,run,model)));
     if(results.some(r=>r.error))throw new Error('cannot judge errored runs');
     // Full-page desktop and phone renders: briefs ask for content that sits below the first screen.
-    const target=readCase(path.join(ROOT,'evals','cases','web-golden',name)).config.target||'index.html';
+    const brief=readCase(path.join(ROOT,'evals','cases',golden,name)), target=brief.config.target||'index.html', motion=brief.config.observe==='motion';
+    // Motion pairs are judged on the load timeline sheet and the page at rest.
+    const views=report=>motion?[report.images[0],report.motion.load.frames.at(-1).image]:report.viewports.map(v=>v.image);
     const renders=[];
     for(const r of results) {
       const dir=path.join(output,'judge-renders',model,name,String(run),r.arm);fs.mkdirSync(path.join(dir,'.nomi'),{recursive:true}); // own state: runs resolve to the nearest .nomi upward
       const done=fs.existsSync(path.join(dir,'.nomi','runs'))&&fs.readdirSync(path.join(dir,'.nomi','runs'))[0];
-      renders.push(done?readRun(done,dir).report.viewports.map(v=>v.image):(await observe(path.join(r.workspace,target),{cwd:dir,full:true})).report.viewports.map(v=>v.image));
+      renders.push(views(done?readRun(done,dir).report:(await observe(path.join(r.workspace,target),{cwd:dir,full:!motion,motion})).report));
     }
     const votes=[];
     for(let swap=0;swap<2;swap++) {
-      const key=`judge/gpt-6-sol/${model}/${versus==='without'?'':`vs-${versus}/`}${name}/${run}/${swap}`;
+      const key=`judge/${JUDGE}/${model}/${scope==='web-golden'?'':`${scope}/`}${versus==='without'?'':`vs-${versus}/`}${name}/${run}/${swap}`;
       const prior=ledger.find(r=>r.key===key);
       const out=path.join(output,key);
       if(prior&&!prior.error){votes.push(JSON.parse(fs.readFileSync(path.join(out,'result.json'),'utf8')).winner);continue;}
@@ -186,16 +207,16 @@ async function judgePairs(output,ledgerFile,ledger,model,versus='without') {
         // The judge uses the normal Codex login so Codex refreshes it itself; copied access tokens were rejected (401).
         // User config, rules and session history stay out: --ignore-user-config --ignore-rules --ephemeral, read-only sandbox.
         const order=swap?[results[1],results[0]]:results;
-        const images=(swap?[renders[1],renders[0]]:renders).flatMap((pair,i)=>pair.map((file,j)=>{const copy=path.join(workspace,`${i?'B':'A'}-${j?'phone':'desktop'}.png`);fs.copyFileSync(file,copy);return copy;}));
+        const images=(swap?[renders[1],renders[0]]:renders).flatMap((pair,i)=>pair.map((file,j)=>{const copy=path.join(workspace,`${i?'B':'A'}-${j?'second':'first'}.png`);fs.copyFileSync(file,copy);return copy;}));
         const schema=path.join(workspace,'schema.json');fs.writeFileSync(schema,JSON.stringify({type:'object',properties:{winner:{type:'string',enum:['A','B','tie']},reason:{type:'string'}},required:['winner','reason'],additionalProperties:false}));
-        const prompt=readCase(path.join(ROOT,'evals','cases','web-golden',name)).prompt;
-        const instruction=`Judge these two rendered web pages against the brief below. Images 1 and 2 are page A (full-page desktop at 1440 px wide, then phone at 390 px); images 3 and 4 are page B in the same order. You know nothing about the builders. Consider fit to brief, visual distinctiveness, craft (including readable type and broken layout), and coherence. A default-looking template with relevant copy is not automatically distinctive. Ties allowed. Use only attached screenshots. Do not run commands, inspect files, or use tools. Return the schema with a short reason.\nBrief:\n${prompt}`;
+        const shown=motion?'Images 1 and 2 are page A (eight frames across its load animation, labelled with the time since the first animation started, then the page at rest); images 3 and 4 are page B in the same order. You know nothing about the builders. Judge the motion: fit to brief, whether the sequence has a clear order that guides the eye, distinctiveness, craft (nothing broken, hidden or unreadable at rest), and coherence with the page. An entrance where everything fades in together is not automatically distinctive.':'Images 1 and 2 are page A (full-page desktop at 1440 px wide, then phone at 390 px); images 3 and 4 are page B in the same order. You know nothing about the builders. Consider fit to brief, visual distinctiveness, craft (including readable type and broken layout), and coherence. A default-looking template with relevant copy is not automatically distinctive.';
+        const instruction=`Judge these two rendered web pages against the brief below. ${shown} Ties allowed. Use only attached screenshots. Do not run commands, inspect files, or use tools. Return the schema with a short reason.\nBrief:\n${brief.prompt}`;
         fs.mkdirSync(out,{recursive:true});const answer=path.join(out,'vote.json');
         const [codex,...prefix]=codexCommand();
-        const execution=await invoke(codex,[...prefix,'exec','--ignore-user-config','--ignore-rules','--ephemeral','--skip-git-repo-check','--sandbox','read-only','--model','gpt-6-sol','-c','model_reasoning_effort="low"','--json','--output-schema',schema,'--output-last-message',answer,...images.flatMap(i=>['--image',i]),'--',instruction] /* --image takes several values; -- keeps the brief a prompt */,{cwd:workspace,env:process.env,output:out,timeout:120000});
+        const execution=await invoke(codex,[...prefix,'exec','--ignore-user-config','--ignore-rules','--ephemeral','--skip-git-repo-check','--sandbox','read-only','--model',JUDGE,'-c','model_reasoning_effort="low"','--json','--output-schema',schema,'--output-last-message',answer,...images.flatMap(i=>['--image',i]),'--',instruction] /* --image takes several values; -- keeps the brief a prompt */,{cwd:workspace,env:process.env,output:out,timeout:120000});
         let events=[];try{events=execution.stdout.trim().split('\n').filter(Boolean).map(l=>JSON.parse(l));}catch{/* reported by parseJudge */}
         const result=parseJudge(events,fs.existsSync(answer)?fs.readFileSync(answer,'utf8'):'');
-        result.model='gpt-6-sol';result.swap=Boolean(swap);result.date=new Date().toISOString();
+        result.model=JUDGE;result.swap=Boolean(swap);result.date=new Date().toISOString();
         if(execution.code!==0)result.error=`judge exited ${execution.code}: ${execution.stderr.trim().slice(-300)}`;
         fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2));
         Object.assign(pending,{cost:result.cost,error:result.error});fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
@@ -228,13 +249,14 @@ export function hostArgs(prompt,model,cap,plugin,effort='low',settingSources='',
   if(plugin)args.push('--plugin-dir',plugin);
   return args;
 }
+const JUDGE=process.env.NOMI_JUDGE_MODEL||'gpt-6-sol';
 const ORIGINAL=new Map();
 // S1 findings the untouched fixture already has: "new S1" means introduced by the agent, not merely left alone.
 async function originalS1(config) {
   if(!config.fixture)return new Set();
   if(!ORIGINAL.has(config.fixture)) {
     const scratch=fs.mkdtempSync(path.join(os.tmpdir(),'nomi-original-'));fs.mkdirSync(path.join(scratch,'.nomi'));
-    try {const r=await observe(path.join(ROOT,'evals','fixtures',config.fixture,config.target||'index.html'),{cwd:scratch});ORIGINAL.set(config.fixture,new Set(r.report.findings.filter(f=>f.severity==='S1').map(f=>`${f.viewport}:${f.code}:${f.node}`)));}
+    try {const r=await observe(path.join(ROOT,'evals','fixtures',config.fixture,config.target||'index.html'),{cwd:scratch,motion:config.observe==='motion'});ORIGINAL.set(config.fixture,new Set(r.report.findings.filter(f=>f.severity==='S1').map(f=>`${f.viewport}:${f.code}:${f.node}`)));}
     finally {fs.rmSync(scratch,{recursive:true,force:true,maxRetries:3});}
   }
   return ORIGINAL.get(config.fixture);
@@ -267,9 +289,9 @@ async function runOne({suite,name,prompt,config},arm,cap,output,model,{pluginRoo
   const until=codex&&config.maxTurns?text=>{const calls=codexEvents(text.slice(0,text.lastIndexOf('\n')+1),workspace).events.flatMap(e=>e.type==='assistant'?e.message.content:[]);return calls.some(c=>c.name==='Skill')||calls.filter(c=>c.name==='Bash').length>=4;}:undefined;
   const start=Date.now();
   fs.mkdirSync(output,{recursive:true});
-  const execution=await invoke(command,[...prefix,...args],{cwd:workspace,env:codex?process.env:env,output,until,timeout:codex?600000:300000});
+  const execution=await invoke(command,[...prefix,...args],{cwd:workspace,env:codex?process.env:env,output,until,timeout:codex?900000:300000});
   fs.mkdirSync(output,{recursive:true}); fs.writeFileSync(path.join(output,'transcript.jsonl'),execution.stdout);fs.writeFileSync(path.join(output,'stderr.txt'),execution.stderr);
-  const parsed=codex?codexEvents(execution.stdout,workspace):parseTranscript(execution.stdout);
+  const parsed=codex?codexEvents(execution.stdout,workspace,Date.now()):parseTranscript(execution.stdout);
   // Trigger runs are cut short on purpose (turn limit, or the early stop above); that is not a failed run.
   const cut=config.maxTurns&&(/error_max_turns/.test(parsed.error||'')||(codex&&until(execution.stdout)));
   if(cut){parsed.error=null;execution.code=0;execution.timedOut=false;}
@@ -283,10 +305,14 @@ async function runOne({suite,name,prompt,config},arm,cap,output,model,{pluginRoo
     result.behavior=transcriptGrade(parsed.events,temp);
     result.regex=(config.regex||[]).filter(rule=>!rule.source).map(rule=>({id:rule.id,pass:fs.existsSync(path.join(workspace,rule.file))&&gradeRegex(fs.readFileSync(path.join(workspace,rule.file),'utf8'),rule)}));
     if(config.render!==false) try { // routing cases produce no page: "render": false skips the neutral render
-      const render=await observe(path.join(workspace,config.target||'index.html'),{cwd:workspace});
+      const motion=config.observe==='motion';
+      const render=await observe(path.join(workspace,config.target||'index.html'),{cwd:workspace,motion});
       result.render=render.report;
+      if(motion)Object.assign(result,gradeMotion(render.report,config));
+      else {
       result.regex.push(...(config.regex||[]).filter(rule=>rule.source==='renderedCopy').map(rule=>({id:rule.id,pass:render.report.viewports.every(v=>gradeRegex(v.census.copy,rule))})));
       result.defects=gradeDefects(render.report,config.defects||[]);
+      }
       const original=await originalS1(config);
       result.newS1=render.report.findings.filter(f=>f.severity==='S1'&&!(config.defects||[]).some(d=>d.code===f.code&&d.node===f.node)).map(f=>`${f.viewport}:${f.code}:${f.node}`).filter(key=>!original.has(key));
     } catch(error) {result.error=`neutral render: ${error.message}`;}
@@ -297,18 +323,20 @@ async function runOne({suite,name,prompt,config},arm,cap,output,model,{pluginRoo
   return result;
 }
 async function main() {
-  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},'plugin-root':{type:'string'},install:{type:'string',default:'plugin'},label:{type:'string'},effort:{type:'string',default:'low'},ceiling:{type:'string',default:'25'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},host:{type:'string',default:'claude'},'retry-errors':{type:'boolean'}}});
+  const {values:opts}=parseArgs({options:{suite:{type:'string'},model:{type:'string',default:'claude-sonnet-5-5'},arm:{type:'string',default:'both'},versus:{type:'string',default:'without'},golden:{type:'string',default:'web-golden'},'plugin-root':{type:'string'},install:{type:'string',default:'plugin'},label:{type:'string'},effort:{type:'string',default:'low'},ceiling:{type:'string',default:'25'},runs:{type:'string',default:'3'},cap:{type:'string',default:'0.5'},out:{type:'string',default:'evals/results/phase-2'},case:{type:'string'},host:{type:'string',default:'claude'},'retry-errors':{type:'boolean'}}});
   if(!['claude','codex'].includes(opts.host))throw new Error('--host must be claude or codex');
   if(!opts.suite)throw new Error('--suite required (or judge)');
   const output=path.resolve(opts.out);fs.mkdirSync(output,{recursive:true});
   const ledgerFile=path.join(output,'ledger.json');
   const ledger=fs.existsSync(ledgerFile)?JSON.parse(fs.readFileSync(ledgerFile,'utf8')):[];
-  if(opts.suite==='judge')return judgePairs(output,ledgerFile,ledger,opts.model,opts.versus);
+  if(opts.suite==='judge')return judgePairs(output,ledgerFile,ledger,opts.model,opts.versus,opts.golden,opts.label);
   if(opts.suite==='regrade') { // re-score saved transcripts and workspaces after a grader fix; no model calls
     for(const entry of ledger.filter(e=>!e.error&&e.key.startsWith(`${opts.model}/`))) {
       const dir=entry.output||path.join(output,entry.key), file=path.join(dir,'result.json'), result=JSON.parse(fs.readFileSync(file,'utf8'));
       const text=fs.readFileSync(path.join(dir,'transcript.jsonl'),'utf8');
-      result.behavior=transcriptGrade((result.host==='codex'?codexEvents(text,result.workspace):parseTranscript(text)).events,path.dirname(result.workspace));
+      // Motion defects and decoys are re-scored from the stored neutral run.
+      if(result.render?.kind==='motion') Object.assign(result,gradeMotion(result.render,loadCases(result.suite,[result.case])[0].config));
+      result.behavior=transcriptGrade((result.host==='codex'?codexEvents(text,result.workspace,Date.parse(result.date)):parseTranscript(text)).events,path.dirname(result.workspace));
       fs.writeFileSync(file,JSON.stringify(result,null,2));console.log(JSON.stringify({key:entry.key,...result.behavior}));
     }
     return;
@@ -337,7 +365,7 @@ async function main() {
     console.log(`START ${key} (cap $${cap})`);
     const result=await runOne(dir,arm,cap,runOutput,opts.model,{pluginRoot:path.resolve(opts['plugin-root']||ROOT),effort:opts.effort,install:opts.install,host:opts.host});
     Object.assign(pending,{cost:result.cost,error:result.error});fs.writeFileSync(ledgerFile,JSON.stringify(ledger,null,2));
-    console.log(JSON.stringify({key,cost:result.cost,error:result.error,behavior:result.behavior,defects:result.defects}));
+    console.log(JSON.stringify({key,cost:result.cost,error:result.error,behavior:result.behavior,defects:result.defects,decoys:result.decoys,newS1:result.newS1}));
     if(result.error)throw new Error(`eval failed: ${result.error}; inspect error before resuming`);
   }
 }

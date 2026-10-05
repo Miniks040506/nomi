@@ -17,7 +17,8 @@ const SKILL_PATH = /(?:\]\(|`|<skill-dir>\/)((?:references|assets|scripts)\/[^)`
 // Domain skills reach the shared core as a sibling folder: <core> = <skill-dir>/../nomi.
 const SIBLING_PATH = /<skill-dir>\/(\.\.\/[^)`\s#]+)|<core>\/([^)`\s#]+)/g;
 const DOMAIN_SKILL = new RegExp(`^nomi-(${Object.keys(DOMAINS).join('|')})$`);
-const MODULE_SECTIONS = 'Decide|Traps|Instrument|Observe|Critique lenses|Moves';
+const DOMAIN_MODULE = new RegExp(`^references/(${Object.keys(DOMAINS).join('|')})\\.md$`);
+const MODULE_SECTIONS ='Decide|Traps|Instrument|Observe|Critique lenses|Moves';
 
 export function checkSkill(dir) {
   const findings = [];
@@ -59,7 +60,8 @@ export function checkSkill(dir) {
     const budget = rel === 'SKILL.md' ? 150 : /^references\/.*\.md$/.test(rel) ? 200 : /^assets\/.*\.md$/.test(rel) ? 120 : null;
     if (budget && count > budget) add(file, budget + 1, 'budget.lines', `${count} lines (budget ${budget})`);
     // A domain skill is its module: an entry without the full contract would expose an unfinished domain.
-    if (rel === 'SKILL.md' && DOMAIN_SKILL.test(path.basename(dir))) {
+    // The same holds for a domain module kept inside the core (references/motion.md).
+    if ((rel === 'SKILL.md' && DOMAIN_SKILL.test(path.basename(dir))) || DOMAIN_MODULE.test(rel)) {
       const headings = [...content.matchAll(/^## (.+)$/gm)].map(m => m[1].trim());
       if (headings.join('|') !== MODULE_SECTIONS) add(file, 1, 'module.sections', 'domain skill needs exactly Decide, Traps, Instrument, Observe, Critique lenses, Moves in that order');
     }

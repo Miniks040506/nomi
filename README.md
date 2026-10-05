@@ -2,11 +2,11 @@
 
 Nomi is a vendor-neutral creative intelligence layer for coding agents. It is designed to help agents set a clear direction, keep project context consistent, and evaluate creative work against observable evidence.
 
-**Status:** Core direction, Project DNA, critique, browser observation and the Web skill are implemented (Phases 1–2). Multi-host packaging (Phase 3) is in progress: the installer, manifests and host verifier ship, and two of eight hosts are verified locally. Claim only the host support recorded in [integration evidence](docs/INTEGRATIONS.md).
+**Status:** Core direction, Project DNA, critique, browser observation, the Web skill (Phases 1–2) and motion timeline capture with its module (Phase 4) are implemented. Multi-host packaging (Phase 3) is in progress: the installer, manifests and host verifier ship, and two of eight hosts are verified locally. Claim only the host support recorded in [integration evidence](docs/INTEGRATIONS.md).
 
 ## Install
 
-Nomi is a set of skill folders that must stay side by side: `nomi` (the shared core) and `nomi-web` (web pages and UI, which uses the scripts and protocols in `nomi` next to it).
+Nomi is a set of skill folders that must stay side by side: `nomi` (the shared core, which also holds the motion module) and `nomi-web` (web pages and UI, which uses the scripts and protocols in `nomi` next to it).
 
 **Verified on this project's test machine** (version, date and evidence in [INTEGRATIONS.md](docs/INTEGRATIONS.md)):
 
@@ -34,15 +34,18 @@ The observation CLI needs Node 22+ and a Chromium-family browser:
 
 ```text
 node skills/nomi/scripts/nomi.mjs observe <url-or-html-file>
+node skills/nomi/scripts/nomi.mjs observe <url-or-html-file> --motion [--interact steps.json]
 node skills/nomi/scripts/nomi.mjs diff <before-run-id> <after-run-id>
 node skills/nomi/scripts/nomi.mjs doctor
 ```
+
+`--motion` records every CSS animation, transition and Web Animations API animation from page load on, writes `load.png` (8 frames replayed across the load sequence) and, with a step script, `interactions.png` (hover, press, click, focus, scroll states), and loads the page again with reduced motion requested. Motion drawn from script frame by frame (canvas, `requestAnimationFrame`) is not measured.
 
 Run from the project you want to inspect, using an absolute path to the script when necessary. Open the images printed by `observe`; measurements alone do not establish visual quality. Set `NOMI_BROWSER` to a browser executable if discovery fails. Runs stay in the project's `.nomi/runs/`; the latest ten complete runs are retained. File/directory targets serve static assets; framework apps need their normal dev server.
 
 ## Repository
 
-- `skills/nomi/` — shared vendor-neutral core: loop, direction and critique protocols, templates, zero-dependency scripts
+- `skills/nomi/` — shared vendor-neutral core: loop, direction, critique and motion protocols, templates, zero-dependency scripts
 - `skills/nomi-web/` — web entry skill: must-do steps and the web module (uses the core next to it)
 - `adapters/hosts.json` — machine-readable host table: folders, channels, headless commands, verification record
 - `tools/` — `check.mjs` (static gate), `install.mjs` (installer), `verify-hosts.mjs` (host smoke test)

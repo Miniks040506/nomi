@@ -116,6 +116,11 @@ test('a domain skill must carry the six-section contract, so a stub cannot pass 
   assert.ok(codes(checkSkill(stub)).includes('module.sections'));
   fs.writeFileSync(path.join(stub, 'SKILL.md'), `${GOOD_FRONTMATTER.replace('name: nomi','name: nomi-web')}\n# Web\n${SECTIONS}`);
   assert.ok(!codes(checkSkill(stub)).includes('module.sections'));
+  // A domain module inside the core is held to the same contract; other references are not modules.
+  const core = makeSkill({ 'SKILL.md': `${GOOD_FRONTMATTER}\n# Core\n`, 'references/direction.md': null, 'references/motion.md': '# Motion\nSoon.\n', 'references/critique.md': '# Critique\n' });
+  assert.deepEqual(checkSkill(core).filter(f => f.code === 'module.sections').map(f => path.basename(f.file)), ['motion.md']);
+  fs.writeFileSync(path.join(core, 'references', 'motion.md'), `# Motion\n${SECTIONS}`);
+  assert.ok(!codes(checkSkill(core)).includes('module.sections'));
 });
 
 test('sibling paths to the shared core must resolve', () => {

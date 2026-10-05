@@ -21,8 +21,10 @@ const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
   observe <url|file|dir>           capture and measure (default: desktop and mobile)
     --viewport 1440x900            repeat up to 4; --full --dark --reduced-motion
     --wait 1800 --label "<text>"    bounded settling in ms (200–5000)
+    --motion [--interact <file>]   animation inventory, load timeline and reduced-motion comparison;
+                                   the file is a JSON list of hover, press, click, focus, scroll, wait steps
   diff <runA> <runB>               metric deltas and a before/after sheet
-  probe print web                 runnable probe for a host browser tool
+  probe print <web|motion>        runnable probe for a host browser tool
   critique pack --task "…" --run <id>  include measured evidence
   version
 
@@ -32,8 +34,8 @@ class UsageError extends Error {}
 const fail = (message) => { throw new UsageError(message); };
 const rel = (p) => path.relative(process.cwd(), p) || '.';
 const read = (...parts) => fs.readFileSync(path.join(SKILL_DIR, ...parts), 'utf8');
-// Domain skills are sibling folders of this core: nomi-web, later nomi-motion and so on.
-const domainSkill = (domain) => path.join(SKILL_DIR, '..', `nomi-${domain}`, 'SKILL.md');
+// A domain is an entry skill next to this core (nomi-web) or a module inside it (references/motion.md).
+const domainSkill = (domain) => [path.join(SKILL_DIR, '..', `nomi-${domain}`, 'SKILL.md'), path.join(SKILL_DIR, 'references', `${domain}.md`)].find((f) => fs.existsSync(f));
 
 function print(opts, json, text, code = 0) {
   console.log(opts.json ? JSON.stringify(json, null, 2) : text);
@@ -112,7 +114,7 @@ function critiquePack(opts) {
   const dnaPath = findDna(process.cwd());
   const dna = dnaPath ? sliceDna(fs.readFileSync(dnaPath, 'utf8'), opts.domain) : 'No project DNA exists. Judge against the task and the existing product.';
   const module = opts.domain && domainSkill(opts.domain);
-  const lens = module && fs.existsSync(module) ? /^## Critique lenses\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(fs.readFileSync(module,'utf8'))?.[1].trim() : 'No domain module applies; use the rules below.';
+  const lens = module ? /^## Critique lenses\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(fs.readFileSync(module,'utf8'))?.[1].trim() : 'No domain module applies; use the rules below.';
   const brief = read('assets', 'critic-brief.md')
     .replace('{{task}}', () => opts.task)
     .replace('{{dna}}', () => dna.trim())
@@ -137,7 +139,7 @@ async function doctor(opts) {
   let browser;
   try { const launched = await launchBrowser(); browser = { ok: true, version: launched.version.product, transport: launched.transport }; await launched.close(); }
   catch (error) { browser = { ok: false, error: error.message }; }
-  const domains = Object.keys(DOMAINS).filter((d) => fs.existsSync(domainSkill(d)));
+  const domains = Object.keys(DOMAINS).filter((d) => domainSkill(d));
   const report = { node: { version: process.versions.node, ok: nodeOk }, skillDir: SKILL_DIR, domains, dna, writable, browser };
   const text = [
     `node   ${process.versions.node} ${nodeOk ? 'ok' : 'too old: need 22 or newer'}`,
@@ -169,6 +171,8 @@ async function run(argv) {
       'reduced-motion': { type: 'boolean' },
       wait: { type: 'string' },
       label: { type: 'string' },
+      motion: { type: 'boolean' },
+      interact: { type: 'string' },
     },
   });
   if (!cmd || cmd === 'help' || opts.help) return print({}, null, HELP);
@@ -179,8 +183,9 @@ async function run(argv) {
     return print(opts, result.report, summary(result.report).trim(), result.report.findings.length ? 1 : 0);
   }
   if (cmd === 'probe' && sub === 'print') {
-    if (file !== 'web') fail('unknown probe; use: nomi probe print web');
-    process.stdout.write(read('scripts', 'probes', 'web-census.js'));
+    const probes = { web: 'web-census.js', motion: 'motion.js' };
+    if (!Object.hasOwn(probes, file ?? '')) fail('unknown probe; use: nomi probe print web, or: nomi probe print motion');
+    process.stdout.write(read('scripts', 'probes', probes[file]));
     return 0;
   }
   if (cmd === 'dna' && sub === 'init') return dnaInit();

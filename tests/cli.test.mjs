@@ -182,7 +182,7 @@ test('doctor reports the runtime, the skill folder and DNA status', () => {
   const report = JSON.parse(r.out);
   assert.equal(report.node.ok, true);
   assert.equal(fs.existsSync(path.join(report.skillDir, 'SKILL.md')), true);
-  assert.deepEqual(report.domains, ['web'], 'domain skills are found as siblings of the core');
+  assert.deepEqual(report.domains, ['web', 'motion'], 'domain skills are found as siblings of the core');
   assert.match(report.dna, /dna\.md$/);
 });
 

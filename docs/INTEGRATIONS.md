@@ -4,7 +4,7 @@ How Nomi reaches each target host. Host documentation below was checked on **202
 
 ## 1. Summary
 
-- Every target host loads **Agent Skills** (a folder with `SKILL.md`), so Nomi ships **one set of skill folders**: the shared core `skills/nomi/` and one entry skill per finished domain (`skills/nomi-web/` today), with no per-host copies of their logic. The set is installed together: domain skills reach the core as the sibling folder `../nomi`.
+- Every target host loads **Agent Skills** (a folder with `SKILL.md`), so Nomi ships **one set of skill folders**: the shared core `skills/nomi/` and one entry skill per finished domain (`skills/nomi-web/` today; motion is a module inside the core), with no per-host copies of their logic. The set is installed together: domain skills reach the core as the sibling folder `../nomi`.
 - A project install copies the Nomi folders side by side into two places: **`.agents/skills/`** (Codex, Cursor, OpenCode, Gemini CLI, Antigravity, OpenClaw, Hermes) and **`.claude/skills/`** (Claude Code, which does not read `.agents/skills`).
 - Native packages are optional conveniences: a Claude Code plugin, an **Agent Plugins v1** portable package (Codex, Cursor, OpenClaw, Hermes), and a Gemini CLI extension. Antigravity and OpenCode are served by folders.
 - V1 needs no hooks, MCP servers, commands or host agent definitions on any host.
@@ -157,6 +157,9 @@ Other findings:
 - `codex plugin marketplace add <repo>` accepts `.agents/plugins/marketplace.json` and lists `nomi@nomi` (tested against a throwaway `CODEX_HOME`). Installing the plugin from its GitHub URL is untested.
 - npm installs host CLIs on Windows as `.cmd` shims, which Node cannot spawn without a shell. `tools/install.mjs` `resolveBin` runs the shim's script with Node instead.
 - Codex reported that it can start subagents (self-reported; not exercised).
+- Claude Code 2.1.289 with `claude-sonnet-5-5` at `--effort low` (2026-10-04): on Build requests over an existing project ("…fix any serious problems you find. Deliver index.html and a short verification report.") the model read the page and edited it without loading any skill, 0/7 with the Nomi plugin, including a Phase 2 case that activated 27/27 on 2.1.286. Short prompts still activated 4/4, and the same Build case at `--effort medium` loaded `nomi:nomi-web` first and captured. The cause was a third listed Nomi skill, not effort: with the Phase 3 pair of skills the same prompts activated 11/16 at low effort (ARCHITECTURE D20). Nomi therefore keeps two listings, and evals stay at low effort.
+- Codex 0.159.3 runs a command that takes about 10 s (a motion capture) as a background session: `exec --json` then has the command's `item.started` but never its `item.completed`. The agent still reads the result. The harness counts such an observe with the runs it wrote before the agent finished.
+- Codex agents on Windows wrote `--interact` files with PowerShell `Set-Content -Encoding utf8`, which adds a byte-order mark; `observe` now strips it.
 
 ## 7. Verification protocol
 

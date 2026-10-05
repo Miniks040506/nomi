@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Motion census fixture</title>
+<!-- Ground truth for tests/motion.test.mjs. Load motion spans 1000 ms: cards end at 800, #late runs 700 to 1000. -->
+<style>
+body{margin:40px;font:16px/1.5 Arial,sans-serif;background:#fff;color:#000}
+@keyframes rise{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes grow{from{width:40px}to{width:400px}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card{width:200px;height:80px;margin:8px 0;background:#234;animation:rise 600ms cubic-bezier(0.2,0.8,0.2,1) both}
+#c2{animation-delay:100ms}#c3{animation-delay:200ms}
+#bar{height:12px;background:#c40;animation:grow 400ms ease-in 300ms 1 forwards}
+#spin{width:24px;height:24px;border:3px solid #000;border-top-color:#fff;border-radius:50%;animation:spin 1000ms linear infinite}
+#late{opacity:0;transition:opacity 300ms ease-out}#late.in{opacity:1}
+.btn{font:inherit;padding:12px 20px;background:#eee;border:1px solid #000;transition:all 300ms ease}
+.btn:hover{background:#fc0;transform:translateY(-4px)}.btn:active{transform:scale(.9)}
+#link{color:#00c;transition:color 150ms linear}#link:hover{color:#c00}
+@media (prefers-reduced-motion:reduce){#spin{animation:none}#link{transition:none}}
+</style>
+<div id="c1" class="card"></div><div id="c2" class="card"></div><div id="c3" class="card"></div>
+<div id="bar"></div><div id="spin"></div><p id="late">Late notice</p>
+<button id="cta" class="btn">Book</button> <a id="link" href="#c1">Details</a>
+<script>setTimeout(()=>document.getElementById('late').classList.add('in'),700)</script>

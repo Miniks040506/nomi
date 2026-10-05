@@ -33,9 +33,11 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 | `web-adherence` | 2 | L2 | 2 Build/Create tasks | Observe-before-claim, citation validity | Claude Code |
 | `discovery` | migration | L2 | One explicit request for the web skill, run in each install layout (`--install plugin` or `project`) | Web skill loaded, core files resolved, capture produced and opened | Claude Code; other hosts in 3 |
 | `routing` | migration | L2 | A non-web creative task (game lore) | Core skill loads, web skill does not | Claude Code |
-| `trigger` | 3 | L2 | `evals/cases/trigger/prompts.json`: 15 should-trigger prompts (7 edits to existing pages, 2 new pages, 1 review, 5 non-web creative tasks that must route to the core) and 15 should-not (backend, tests, tooling, three of them inside a web project). Each run is cut after the first actions (3 turns on Claude Code; first skill read or 4 commands on Codex) | Recall, false-trigger rate, routing | Claude Code, Codex (the two hosts with a transcript driver) |
+| `trigger` | 3 | L2 | `evals/cases/trigger/prompts.json`: 15 should-trigger prompts (7 edits to existing pages, 2 new pages, 1 review, 5 non-web creative tasks, a motion plan among them, that must route to the core) and 15 should-not (backend, tests, tooling, three of them inside a web project). Each run is cut after the first actions (3 turns on Claude Code; first skill read or 4 commands on Codex) | Recall, false-trigger rate, routing | Claude Code, Codex (the two hosts with a transcript driver) |
 | `host-smoke` | 3 | L2 | `tools/verify-hosts.mjs`: temp project → project install → one explicit prompt → skill activated, `doctor` ran (`domains web`), capture produced and where, a number read from an image, subagents (self-reported) | Pass = activation and a script run | Every host CLI present |
-| `motion-seeded` / `motion-golden` | 4 | L3 | 3 fixtures (`transition: all`, layout-property animation, uniform 300 ms ease, 12 simultaneous fade-ups, no reduced-motion); 2 briefs | Seeded fixes; preference | Claude Code, Codex |
+| `motion-seeded` | 4 | L3 | Build requests on three pages with a DNA Motion section, defects not named by the prompt: ferry board (rows and a bar travel under reduced motion; a bar animates `width`), seed shop (12 packets enter at the same moment; `transition: all`; travel under reduced motion), clinic steps (a toast animates `top`; `transition: all`; travel under reduced motion). Decoys the DNA asks for: an infinite live dot, a 2 px press, a 900 ms tick | Seeded defects gone from the harness's own motion run while load motion survives; decoys intact; new S1 | Claude Code, Codex |
+| `motion-golden` | 4 | L3 | 2 Create briefs where the load sequence is the brief (bakery first light, rowing crew board) | Blinded pairwise preference on the load sheet and the page at rest; pages shipped with `motion.reduced-motion` | Claude Code, Codex |
+| motion adherence | 4 | L2 | No separate cases: read from the with-Nomi runs of the two motion suites | Motion run produced, sheet opened, ms values in the final report that a run measured | Claude Code, Codex (sheet opening is not measurable on Codex) |
 | `3d-seeded` / `3d-golden` | 5 | L3 | 3 fixtures (ambient-only light without tone mapping; dead-center camera with near-plane clipping; unbounded controls, uncapped DPR, 300+ draw calls); 2 briefs | Seeded fixes; preference | Claude Code, Codex |
 | `game-seeded` / `game-golden` | 6 | L3 | 3 fixtures (symmetric floaty jump; no coyote time or buffer; 3-frame input delay; hits without feedback); 2 briefs | Measured feel metrics vs targets; preference | Claude Code, Codex |
 | `world-seeded` / `world-continuity` / `crossdomain-golden` | 7 | L3 | Contradictions, undefined and generic names; two-session (two-host) canon growth; small browser game with world and UI | Contradictions introduced; coherence preference | Claude Code, Codex |
@@ -49,12 +51,14 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 - File, regex and DNA-rule checks on the workspace.
 - Neutral re-measurement: after a run, the harness (never the agent) renders both arms' outputs with the Nomi engine and compares seeded-defect detectors. Each seeded defect has an id, severity, detector and fix criterion.
 - Canon checks for World suites.
+- Motion cases (`"observe": "motion"` in `nomi.json`): the harness runs `observe --motion` on the result. A defect is a finding code (optionally an element); it counts as fixed when the code is gone and the page still has at least `minLoad` load animations, so deleting all motion fixes nothing. A defect may set `minCount`, so that a finding on fewer elements is not the seeded defect (six packets of one row entering together are not "all twelve at once"). A decoy is `match` fields of an animation that must still run (for example `{"name":"pulse","iterations":"infinite"}`), or a tested regex on the file.
 
 **Transcript**
 - Activation signal per host (driver-specific).
 - Observe-before-claim: an observe command succeeded, meaning its output names a run whose `report.json` exists anywhere in the eval's temp root (agents run the CLI from the project, its parent or the skill folder). "Looked" additionally requires a capture to have been opened.
 - Evidence-claim validity (the citation metric): agents cite evidence in prose, not paths. Each final-report sentence that says a screenshot or capture was opened, viewed or shows something must be backed by an opened image of each viewport it names. Each "N findings" must match a report the session produced. Sentences that disclaim ("did not open") are not claims.
 - Tier behavior: no DNA write, direction note or critic for Tweak prompts.
+- Quoted timings (motion): every distinct `N ms` in the final report is checked against the durations, delays and settle time of the motion runs the session produced (`timingsQuoted`, `timingsMeasured`). A value that no run measured is an estimate or a value read from code.
 
 **Judge**
 - Pairwise and blinded: the judge sees the brief and neutral renders only (no code, no `.nomi/`, no transcript), both orders (position swap), ties allowed.
@@ -78,6 +82,9 @@ How Nomi proves it changes what agents do, and that the change is better. Every 
 - Activation is not adherence. Report what the agent did after loading the skill: observed, opened a capture, read the DNA (`behavior.dnaRead`), opened the core (`behavior.coreRead`).
 - Compare architectures with a control that isolates the cause: the same description fix on the single skill showed that wording fixes activation, and that the entry file's own steps drive observation.
 - A host update between runs (2.1.284 to 2.1.286 here) means a fresh control arm, not reuse of older numbers.
+
+**Grader lesson from Phase 4**
+- A fingerprint threshold is not a defect definition. The motion suite first scored the DNA-compliant fix (rows entering together) as unfixed, because one row still met the fingerprint's threshold; it reported 0/12 fixes where the corrected score is 6/6 with Nomi and 1/6 without. Before a run, test each grader against a correct fix written by hand, not only against the unfixed fixture. `regrade` re-scores motion defects from the stored neutral run.
 
 **Grader lessons from Phase 2**
 - A seeded defect only measures observation if code reading alone misses it. Literal values in plain sight (`color:#aaa`, `width:1400px`, `outline:none`) and prompts that name the defect class ("for phones and keyboards") let the baseline fix everything (v1 and v2: 36/36 per arm).
@@ -139,6 +146,17 @@ node tools/verify-hosts.mjs [--hosts a,b] [--record] [--keep]
 - Codex is plan-billed: the ledger records cost 0 and results carry token usage. Usage limits, not dollars, bound a Codex run.
 - Codex does not emit an event when it views an image, so "opened a capture" and evidence-claim validity are not measurable there; only "observed" (a run report exists) is.
 - A suite is either a folder of case folders or one `prompts.json` (`id`, `prompt`, optional `fixture`, `expect`: `nomi-web`, `nomi` or `null`). Prompt-list runs skip the neutral render and are cut short on purpose; a turn-limit stop is not an error there.
+
+Phase 4 additions to the runner:
+```text
+NOMI_BROWSER_NO_SANDBOX=1 node evals/harness/runner.mjs --suite motion-seeded,motion-golden --host codex --model gpt-6.1-sol --arm both --runs 3 --out evals/results/phase-4
+node evals/harness/runner.mjs --suite motion-seeded,motion-golden --model claude-sonnet-5-5 --arm both --runs 3 --cap 1 --out evals/results/phase-4
+node evals/harness/runner.mjs --suite judge --golden motion-golden --label <label> --model <agent model> --out evals/results/phase-4
+```
+- `--label` on `judge` selects the labelled variant the golden runs were stored under.
+- `--golden <suite>` selects the golden suite to judge (default `web-golden`). For motion briefs the judge sees each page's load sheet and its final frame. `NOMI_JUDGE_MODEL` overrides the judge model (`gpt-6-sol`).
+- On Codex for Windows the agent's own capture needs `NOMI_BROWSER_NO_SANDBOX=1` (D17); the result records `browserSandbox`.
+- When Codex judges Codex output, the judge is not cross-vendor. Report it as such.
 
 ## 7. Case format
 

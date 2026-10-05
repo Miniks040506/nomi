@@ -11,7 +11,7 @@ Planning completed 2026-09-27. Design: `ARCHITECTURE.md` · hosts: `INTEGRATIONS
 | 1 | Nomi Core: direction, taste, critique, Project DNA | DONE | — |
 | 2 | Observation engine + Nomi Web | DONE | 1 |
 | 3 | Multi-host packaging and verification | IN PROGRESS (built; 2 of 8 hosts verified; AC2, AC4, AC6 open) | 1, 2 |
-| 4 | Nomi Motion | NOT STARTED | 2 |
+| 4 | Nomi Motion | DONE | 2 |
 | 5 | Nomi 3D | NOT STARTED | 2 |
 | 6 | Nomi Game | NOT STARTED | 2, 4 |
 | 7 | Nomi World + cross-domain orchestration | NOT STARTED | 1; 4–6 for the cross-domain suite |
@@ -321,7 +321,7 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 
 ## Phase 4 — Nomi Motion
 
-**Status:** NOT STARTED
+**Status:** DONE (2026-10-05)
 
 **Objective.** Every animation has a job, a system and evidence: agents design motion under DNA timing, easing and choreography rules, and verify it from captured timelines, reduced-motion behavior and frame health.
 
@@ -353,7 +353,38 @@ Failure modes the design implies but no single suite fully covers. Each phase th
 - Cap frame counts and downscale images.
 - The motion system is cross-domain: 3D camera moves and game feedback timing reuse these capture primitives and the DNA Motion section.
 
-**Outcome:** _pending_
+**Outcome** (2026-10-05, full evidence in `evals/reports/phase-4.md`). All six acceptance criteria are met; AC6 with the caveats listed.
+- Built:
+  - `probes/motion.js` and `lib/motion.mjs`: inventory of every CSS animation, CSS transition and Web Animations API animation from navigation on; declared-transition scan; settle time; 8 replayed load frames (`load.png`); interaction steps (`--interact`: hover, press, click, focus, scroll, wait) with a before / two frames / after row each (`interactions.png`); a second load with reduced motion requested; long-animation-frame collection.
+  - Findings: `motion.reduced-motion` (S1), `motion.layout-property`, `motion.transition-all`, `motion.long-frame`, and three fingerprints as questions (`uniform-timing`, `same-entrance`, `infinite`).
+  - CLI: `observe --motion [--interact <file>]`, `probe print motion`, `diff` for two motion runs, `critique pack --domain motion`.
+  - The motion module `skills/nomi/references/motion.md` (six sections), must-do lines in `nomi-web` and the core, DNA Motion guidance in `assets/dna.md`.
+  - Fixtures `motion-census`, `motion-ferry-board`, `motion-seed-shop`, `motion-clinic-steps`; suites `motion-seeded` (3 cases) and `motion-golden` (2 briefs); harness: motion cases, decoy matching, quoted-timing grader, motion judging, judge labels, Codex background-command handling.
+- Acceptance criteria:
+  - AC1–5 met (tests): inventory exact on the fixture; 8 frames from 0 ms to the settle time; reduced-motion travel flagged while compliant elements pass; settle 983–1017 ms against 1000 ms; a capture with three steps takes about 12 s.
+  - AC6 met, with caveats (3 runs per arm on both hosts; scores after the grader correction below):
+    - Claude Code 2.1.289: seeded defects fixed 19/24 with Nomi against 12/24 without, ahead on 3 of 3 fixtures (clinic 6/9 against 4/9, ferry 4/6 against 2/6, seed 9/9 against 6/9). Nomi loaded in only 4/9 with runs, and the clinic gain came from runs without it.
+    - Codex 0.159.3: 23/24 against 18/24, ahead on 2 of 3 fixtures (ferry 6/6 against 3/6, seed 9/9 against 7/9; clinic tied 8/9 at the baseline ceiling). Nomi was read and a motion capture ran in 9/9 with runs.
+    - Decoys intact in all 36 seeded runs; new S1 in 0/18 with runs against 1/18 without.
+    - Quoted timings: on Claude Code 16/17 `ms` values in Build reports were measured ones; Codex reports quote almost none.
+    - Golden briefs: Nomi preferred in 8/12 blinded, position-swapped votes on each host (66.7%; gate ≥60%). The Codex row is judged by a Codex model, so it is not cross-vendor.
+    - In the 10 Claude Code runs that loaded Nomi, all ran `observe --motion`, opened a capture and read the motion module.
+    - Grader correction: the first scoring counted a row-by-row entrance (what the fixture's DNA asks for) as an unfixed same-moment entrance, because one row holds six packets. The case now defines the defect as seven or more elements at once; stored runs were re-scored. Before the correction Codex appeared to miss the gate (1 of 3).
+- Tests: Windows 95/95 on final code (Edge); `check` clean; `claude plugin validate .` passes. WSL2 (Ubuntu, portable Node 24.21.0, chrome-headless-shell 154.0.8037.92 with `libnspr4`, `libnss3` and `libasound2` unpacked beside it): `check` clean, 94 pass + 1 Windows-only skip.
+- Decisions and deviations:
+  - D18: an in-page Web Animations recorder and replay from animation data replace the planned CDP Animation-domain events and sampled frames.
+  - D19: one viewport per motion run; the pointer is parked between pointer steps.
+  - D20: motion is a core module, not a third entry skill. With `nomi-motion` listed, Claude Code loaded a Nomi skill in 4/42 runs on two ordinary page edits, against 11/16 with the Phase 3 pair. The deliverable `skills/nomi-motion/SKILL.md` therefore became `skills/nomi/references/motion.md`.
+  - No separate adherence cases: adherence is read from the with-Nomi runs of the two suites.
+  - `motion.reduced-motion` flags travel only; an opacity pulse passes.
+  - The clinic fixture was rewritten twice after pilots (agents removed a notice that claimed a draft the page did not have).
+  - The capture prints the DNA's Motion section beside the measurements, and the module calls a contradiction drift to fix. Added to cure a miss that turned out to be the grader error; a with-arm rerun shows no change (Claude Code 18/24, Codex 23/24).
+- Spend: $17.95 of $25 on Claude Code, of which $8.98 went to the activation investigation; Codex agent runs and the judge are plan-billed (judge upper estimate $1.35).
+- For later phases:
+  - Activation on Claude Code for Build prompts over existing pages fell from 27/27 (2.1.286, migration) to 4/12 on the final layout (2.1.289). This is Phase 3's open trigger gate and limits every domain.
+  - Before adding a listed skill for 3D, game or world, run the D20 activation check; default to a core module.
+  - Script-driven motion (canvas, `requestAnimationFrame`) is not measured; Phases 5 and 6 need their own hooks.
+- Carried forward, not blocking: the Claude Code activation rate (Phase 3 trigger gate); a test race in `a failed navigation leaves no browser profile behind` (failed 1 of 4 full runs on Windows); the Linux toolchain in `~/nomi-toolchain` can serve Phase 3's Linux checks.
 
 ---
 
@@ -532,6 +563,7 @@ Why not stop at 1–3: direction prompts and static web anti-pattern detection a
 | R9 | Baseline contaminated by other installed skills | Medium / High | Isolated runs, recorded environment, explicit competitor arm | 2–3 |
 | R10 | Windows-specific breakage | Medium / Medium | Windows-first development (the dev machine), `node`-invoked scripts, cleanup retries | 2 |
 | R11 | Context bloat | Medium / High | Budgets enforced by check; image caps; slices; overhead suite | all |
+| R13 | Each new listed skill lowers activation of all Nomi skills on Claude Code (measured in Phase 4) | High / High | Domains ship as core modules unless an activation check passes (D20); Phase 3 trigger gate on Claude Code | 3–7 |
 | R12 | Domain modules drift into handbooks | Medium / High | Six-section contract, line budgets, per-phase "does differently" review | 2, 4–7 |
 
 ## Integration uncertainty
@@ -560,7 +592,7 @@ Budgets and their enforcement are in ARCHITECTURE §12. Watch in particular:
 
 ## Reversible architecture decisions
 
-Recorded with triggers in ARCHITECTURE §14 (D1–D17; D14 supersedes D1). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
+Recorded with triggers in ARCHITECTURE §14 (D1–D20; D14 supersedes D1; D20 keeps motion inside the core). The only one-way door for users is the `.nomi/` schema (D3), which is why DNA v1 is minimal and versioned.
 
 ## Open decisions (user)
 
@@ -590,4 +622,7 @@ Recorded with triggers in ARCHITECTURE §14 (D1–D17; D14 supersedes D1). The o
 - 2026-09-27: Phase 1 DONE. D13 reversed (DNA pointer in AGENTS.md/CLAUDE.md); skill description rewritten after the continuity eval; U11 added to INTEGRATIONS.
 - 2026-10-01: Architecture migration DONE. Hybrid skills (core `nomi` + `nomi-web`) replace the single skill (D14–D16); activation on existing-page edits 27/27 and observation 27/27 in the migration eval; later phases deliver `skills/nomi-<domain>/SKILL.md`; U12 added to INTEGRATIONS.
 - 2026-09-30: Phase 2 DONE after the review and completion run. The seeded gate was recalibrated (baseline at ceiling; user decision); golden preference 77.8%; competitor reported. Seeded v1 and v2 archived; seeded v3 is the current suite.
+- 2026-10-05: Phase 4 DONE. Linux run green in WSL2 (94 pass + 1 Windows-only skip).
+- 2026-10-05: Phase 4 evals complete on both hosts. After a grader correction (a row-by-row entrance was scored as unfixed): Claude Code 19/24 against 12/24 (3 of 3 fixtures), Codex 23/24 against 18/24 (2 of 3). Golden preference 66.7% on each host. AC1–6 met; the phase waits only on the Linux run.
+- 2026-10-04: Phase 4 IN PROGRESS (started while Phase 3 waits on host access). Motion capture, the motion module and suites built; AC1–5 met; AC6 partly measured. D18–D20 added: motion is a core module (`references/motion.md`) because a third listed skill cut Claude Code activation to 4/42.
 - 2026-10-03: Phase 3 IN PROGRESS. Packaging, installer, verifier, Codex driver and trigger suite built; Claude Code and Codex at `L`; D17 added; AC2, AC4 (Claude Code) and AC6 blocked by host access (logins, installs, Codex usage limit).

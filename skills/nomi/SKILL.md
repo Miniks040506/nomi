@@ -39,6 +39,7 @@ Create tier: follow `references/direction.md`, then write `.nomi/dna.md` from `a
 ## 4. Look, critique, refine
 
 - Web pages and UI: follow the web skill, `<skill-dir>/../nomi-web/SKILL.md`, for capture (`observe`), lenses and moves. Open the printed images before judging and measure again after fixes.
+- Animation, transitions and hover or press states: capture with `observe <target> --motion`, open `load.png` (and `interactions.png` with `--interact`), and follow `references/motion.md` for steps, lenses and moves.
 - If a capture fails, run the domain's `probe print` through a host browser tool and open its screenshots. Without browser access, say "not visually verified" and cite code only.
 - Other domains: render and open evidence if possible; otherwise say "not visually verified".
 - Critique with `references/critique.md`: at most 5 ranked issues, each tied to evidence.
@@ -51,14 +52,15 @@ Append new decisions to the DNA's Decisions section: date · domain · decision,
 ## Scripts (optional)
 
 Run `node <skill-dir>/scripts/nomi.mjs <command>` from the project folder (runs are saved in its `.nomi/runs/`), where `<skill-dir>` is the folder containing this file:
-`dna init`, `dna check`, `dna show --for <domain>`, `observe <url-or-file>`, `diff <before-id> <after-id>`, `probe print web`, `critique pack --task "…" --run <id>`, `doctor`.
+`dna init`, `dna check`, `dna show --for <domain>`, `observe <url-or-file> [--motion]`, `diff <before-id> <after-id>`, `probe print <web|motion>`, `critique pack --task "…" --run <id>`, `doctor`.
 Without Node: copy `assets/dna.md` to `.nomi/dna.md` by hand and fill it in.
 
 ## Domain skills (load only what the task needs)
 
 Each is a sibling folder of this one and uses this core.
 - `<skill-dir>/../nomi-web/SKILL.md`: web pages and UI: rendered capture, accessibility findings, web lenses and moves.
-- Motion, 3D, game and world have no domain skill yet: apply this loop and critique, and mark visual claims not visually verified.
+- Motion is a module of this core, `references/motion.md`, so it adds no skill of its own: measured timelines, replayed frames, reduced-motion comparison, motion lenses and moves.
+- 3D, game and world have no domain module yet: apply this loop and critique, and mark visual claims not visually verified.
 
 ## Honesty
 

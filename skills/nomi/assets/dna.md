@@ -24,6 +24,11 @@ domains: [web]
 ## Never
 <!-- Project-specific anti-goals, checked in every critique. Include the default you rejected. -->
 
+<!-- When motion is an active domain, add:
+## Motion
+     The job of each motion; 2-3 durations in ms; one easing family with its curve values;
+     entrance order; what never moves; what reduced motion gets instead. -->
+
 ## Decisions
 <!-- Newest first, one line each: date · domain · decision, and why. Max 20. -->
 

@@ -8,6 +8,7 @@ import { compose } from './compose.mjs';
 import { createRun, saveRun, readRun } from './runs.mjs';
 import { findDna } from './dna.mjs';
 import { splitFrontmatter } from './frontmatter.mjs';
+import { captureMotion, parseScript } from './motion.mjs';
 
 export function parseViewports(values = ['1440x900','390x844']) {
   if (!values.length || values.length>4) throw new Error('use 1–4 viewports');
@@ -119,8 +120,11 @@ export function fingerprintFlags(census) {
 }
 export async function observe(target, opts={}) {
   if(!target) throw new Error('observe needs a URL, file or directory');
-  const viewports=parseViewports(opts.viewport);
-  const wait=opts.wait===undefined ? 1800 : Number(opts.wait);
+  const viewports=parseViewports(opts.viewport ?? (opts.motion ? ['1440x900'] : undefined));
+  if(opts.motion && viewports.length>1) throw new Error('--motion captures one viewport; pass a single --viewport');
+  if(opts.interact && !opts.motion) throw new Error('--interact needs --motion');
+  const steps=opts.interact ? parseScript(fs.readFileSync(path.resolve(opts.cwd || process.cwd(),opts.interact),'utf8')) : [];
+  const wait=opts.wait===undefined ? (opts.motion ? 4000 : 1800) : Number(opts.wait);
   if(!Number.isFinite(wait) || wait<200 || wait>5000) throw new Error('--wait must be 200–5000 ms');
   // The opt-in sandbox switch is for the project's own pages only: files, folders and loopback dev servers.
   if(process.env.NOMI_BROWSER_NO_SANDBOX==='1' && /^https?:\/\//i.test(target) && !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[\/?#]|$)/i.test(target)) throw new Error('NOMI_BROWSER_NO_SANDBOX=1 only captures local pages (a file, a folder or a localhost URL); unset it for other URLs');
@@ -137,6 +141,11 @@ export async function observe(target, opts={}) {
     const page=browser.page;
     const design=designSource(opts.cwd||process.cwd());
     await page.send('Page.enable'); await page.send('Network.enable');
+    if(opts.motion) {
+      report.kind='motion';
+      await captureMotion({page,url,viewport:viewports[0],wait,steps,run,report,dark:opts.dark,settle,cwd:opts.cwd||process.cwd(),blank:()=>blankPage(browser)});
+      saveRun(run,report); return {...run,report};
+    }
     for(const viewport of viewports) {
       // Narrow viewports are phones: overlay scrollbars and <meta viewport> handling, not a desktop window with a 15 px scrollbar.
       await page.send('Emulation.setDeviceMetricsOverride',{...viewport,deviceScaleFactor:1,mobile:viewport.width<768});
@@ -174,11 +183,18 @@ export async function observe(target, opts={}) {
 }
 export async function diffRuns(a,b,opts={}) {
   const before=readRun(a,opts.cwd).report, after=readRun(b,opts.cwd).report;
-  if(before.kind!=='web'||after.kind!=='web') throw new Error('diff needs two observation runs');
+  if(before.kind!==after.kind||!['web','motion'].includes(after.kind)) throw new Error('diff needs two observation runs of the same kind');
   let browser,run;
   try {
     browser=await launchBrowser(); run=createRun(opts.cwd);
     const deltas=[];
+    if(after.kind==='motion') {
+      const viewport=after.motion.viewport, count=(r,code)=>r.findings.filter(f=>f.code===code).length;
+      const metric=(name,x,y)=>deltas.push({viewport,metric:name,before:x,after:y,delta:y-x});
+      metric('motion.animations',before.motion.animations.length,after.motion.animations.length);
+      if(before.motion.load.settleMs!==null&&after.motion.load.settleMs!==null) metric('motion.settle-ms',before.motion.load.settleMs,after.motion.load.settleMs);
+      for(const code of new Set([...before.findings,...after.findings].map(f=>f.code))) metric(code,count(before,code),count(after,code));
+    }
     for(const current of after.viewports) {
       const previous=before.viewports.find(v=>v.width===current.width&&v.height===current.height);
       if(!previous) { deltas.push({viewport:`${current.width}x${current.height}`,unmatched:true}); continue; }
