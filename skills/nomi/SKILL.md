@@ -45,6 +45,12 @@ Step 3 opens these; each holds what to decide, the capture options, the critique
 - `modules/motion.md`: the task adds or changes animation, transitions, or hover, focus and press states. First command: `observe <target> --motion`.
 - Work with no module (3D scenes, native apps): apply the steps above, render and open evidence if you can, otherwise say "not visually verified".
 
+## Asked for by name
+
+- "nomi" with a task: work out which modules the task needs and run the steps above.
+- One part by name ("nomi-web", "nomi-motion", "nomi web …"): open that part's file under `modules/` and do that part alone, to the same standard. The DNA, the capture and the honesty rules still apply.
+- A part with no file in `modules/` (plan, review, readme, brandvid, mobile, 3d) is not in this version: say so in one line, then do the task with the steps above.
+
 ## Scripts
 
 `node <skill-dir>/scripts/nomi.mjs <command>`, run from the project folder (runs are saved in its `.nomi/runs/`):

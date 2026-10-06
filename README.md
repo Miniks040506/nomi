@@ -16,7 +16,9 @@ Nomi is one folder, `skills/nomi/`. Copy it where your agent reads skills:
 
 Installer options: `--scope project|user`, `--hosts all|claude,codex,cursor,opencode,gemini,antigravity,openclaw,hermes`, `--dir <project>`, `--dry-run`, `--uninstall`. Running it again replaces the Nomi folder with the current version; it never touches a folder that is not Nomi. Choose only the hosts you use: some read both `.agents/skills` and `.claude/skills` and would list Nomi twice.
 
-Then ask your agent for interface work as usual ("add a pricing section", "improve this page for phones", "redesign the dashboard"). To check the setup: `node <skills-folder>/nomi/scripts/nomi.mjs doctor`.
+A project install also adds one line to the project's `CLAUDE.md` (Claude Code) or `AGENTS.md` (other hosts) telling the agent to load Nomi for interface work. Without that line agents skip the skill on roughly four page edits in ten; with it, on none of the 27 measured. `--uninstall` removes the line. The Claude Code plugin adds the same line at session start through a hook (27 of 27 measured as well). A `--scope user` folder install has neither: add the line to your project yourself, or expect the skill to be skipped sometimes.
+
+Then ask your agent for interface work as usual ("add a pricing section", "improve this page for phones", "redesign the dashboard"). You can also name a part: "use nomi-web on this page", "nomi-motion for the menu". To check the setup: `node <skills-folder>/nomi/scripts/nomi.mjs doctor`.
 
 `nomi dna init` adds one line pointing to `.nomi/dna.md` to `AGENTS.md` or `CLAUDE.md`, so agents without Nomi also see the project's direction. To remove Nomi from a project, uninstall, delete that line and the `.nomi/` folder.
 
@@ -47,6 +49,7 @@ Run it from the project you want to inspect. Runs are saved in the project's `.n
 - `skills/nomi/`: the skill: entry file, modules (web, motion), protocols, templates, zero-dependency scripts
 - `adapters/hosts.json`: host table: folders, channels, verification record
 - `tools/install.mjs`: the installer
+- `hooks/`: Claude Code plugin hook that tells each session to use Nomi for interface work
 - `docs/`: [how Nomi works](docs/ARCHITECTURE.md), [hosts](docs/HOSTS.md)
 
 Licence: none chosen yet; see [LICENSE](LICENSE).

@@ -38,7 +38,9 @@ export async function launchBrowser({ executable = findBrowser(), transport = 'a
     const close = () => stopped ||= (async () => {
       process.off('SIGINT', interrupt); process.off('SIGTERM', interrupt);
       // Windows taskkill /T must see the living root to include its children.
-      if (process.platform !== 'win32' && cdp && !cdp.closed) await cdp.send('Browser.close', {}, undefined, 700).catch(() => {});
+      // A launcher that hands over to another process and exits with 0 (seen with Edge 154) leaves nothing for taskkill to find: ask that browser to close itself.
+      const relaunched = child?.exitCode === 0;
+      if ((process.platform !== 'win32' || relaunched) && cdp && !cdp.closed) await cdp.send('Browser.close', {}, undefined, 1500).catch(() => {});
       cdp?.close();
       if (child?.pid && child.exitCode === null) {
         if (process.platform === 'win32') spawnSync(TASKKILL, ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 });
@@ -63,7 +65,8 @@ export async function launchBrowser({ executable = findBrowser(), transport = 'a
         let port, endpoint;
         while (!port || !endpoint) {
           if (launchError) throw launchError;
-          if (child.exitCode !== null || Date.now() - started > 5500) throw new Error('browser launch failed or timed out');
+          // Exit code 0 before the port file exists can be a hand-over to another process, not a failure: keep waiting for the port.
+          if ((child.exitCode !== null && child.exitCode !== 0) || Date.now() - started > 5500) throw new Error('browser launch failed or timed out');
           try {
             const lines=fs.readFileSync(portFile,'utf8').trim().split(/\r?\n/);
             if (/^\d+$/.test(lines[0]) && /^\/devtools\/browser\//.test(lines[1])) [port,endpoint]=lines;

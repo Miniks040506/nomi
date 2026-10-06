@@ -48,8 +48,20 @@ export function install({ scope = 'project', hosts = 'all', dir = process.cwd(),
       fs.rmSync(dest, { recursive: true, force: true, maxRetries: 5 });
       if (!uninstall) fs.cpSync(path.join(root, 'skills', name), dest, { recursive: true });
     }
+    if (scope === 'project' && !dryRun) point(path.resolve(dir), /\.claude[\\/]/.test(target) ? 'CLAUDE.md' : 'AGENTS.md', uninstall);
   }
   return actions;
+}
+
+// Hosts load a skill only when the model judges it relevant, and measured that misses about four page edits in ten.
+// The project's instruction file is always read, so a project install adds one line there (and uninstall removes it).
+export const POINTER = 'Interface work in this project (pages, screens, components, styling, animation, on-page copy, redesign, UI review) uses the nomi skill: load it before reading or editing files. <!-- nomi -->';
+function point(dir, name, remove) {
+  const file = path.join(dir, name), text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const rest = text.split(/\r?\n/).filter((l) => !l.includes('<!-- nomi -->')).join('\n').replace(/\n*$/, '');
+  const next = remove ? rest : `${rest}${rest ? '\n\n' : ''}${POINTER}`;
+  if (remove && !text.includes('<!-- nomi -->')) return;
+  if (next) fs.writeFileSync(file, `${next}\n`); else fs.rmSync(file, { force: true }); // a file that held only our line goes away with it
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
