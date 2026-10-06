@@ -44,3 +44,10 @@ evals/results/
 # Release artifacts
 *.zip
 *.tgz
+
+# Development tree (its own repository) and agent instruction files
+/dev/
+/CLAUDE.md
+/AGENTS.md
+# Leftover copy of the eval tree from the split (folder was locked); the live one is dev/evals
+/evals/

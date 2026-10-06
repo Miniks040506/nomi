@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "nomi",
   "version": "0.1.0",
-  "description": "Creative direction, critique and refinement for coding agents: web UI, motion, 3D, games and worlds.",
+  "description": "Makes coding agents deliver software UI the way a product team would: direction, rendered evidence, critique and refinement for web interfaces and motion.",
   "repository": "https://github.com/Miniks040506/nomi",
   "author": {
     "name": "Miniks",

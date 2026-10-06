@@ -1,4 +1,4 @@
-// Copies the Nomi skill folders, always as a set, into the folders hosts read (adapters/hosts.json).
+// Copies the Nomi skill folder (every folder under skills/) into the folders hosts read (adapters/hosts.json).
 // Usage: node tools/install.mjs [--scope project|user] [--hosts all|claude,codex,...] [--dir <project>] [--dry-run] [--uninstall]
 import fs from 'node:fs';
 import os from 'node:os';

@@ -34,8 +34,8 @@ class UsageError extends Error {}
 const fail = (message) => { throw new UsageError(message); };
 const rel = (p) => path.relative(process.cwd(), p) || '.';
 const read = (...parts) => fs.readFileSync(path.join(SKILL_DIR, ...parts), 'utf8');
-// A domain is an entry skill next to this core (nomi-web) or a module inside it (references/motion.md).
-const domainSkill = (domain) => [path.join(SKILL_DIR, '..', `nomi-${domain}`, 'SKILL.md'), path.join(SKILL_DIR, 'references', `${domain}.md`)].find((f) => fs.existsSync(f));
+// A domain is a module file inside the skill: modules/<domain>.md.
+const domainSkill = (domain) => [path.join(SKILL_DIR, 'modules', `${domain}.md`)].find((f) => fs.existsSync(f));
 
 function print(opts, json, text, code = 0) {
   console.log(opts.json ? JSON.stringify(json, null, 2) : text);
@@ -144,7 +144,7 @@ async function doctor(opts) {
   const text = [
     `node   ${process.versions.node} ${nodeOk ? 'ok' : 'too old: need 22 or newer'}`,
     `skill  ${SKILL_DIR}`,
-    `domains ${domains.length ? domains.join(', ') : 'none found next to the core'}`,
+    `domains ${domains.length ? domains.join(', ') : 'no module files found'}`,
     `dna    ${dna ? rel(dna) : 'none yet (Create-tier work starts with: nomi dna init)'}`,
     `write  ${writable ? 'ok' : `cannot write to ${process.cwd()}`}`,
     `browser ${browser.ok ? browser.version : browser.error}`,
