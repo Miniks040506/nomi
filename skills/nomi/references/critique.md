@@ -16,7 +16,7 @@ Use after building in the Build and Create tiers, and whenever asked to review, 
 
 ## 3. Write the critique
 ```
-Verdict: SHIP | REFINE | RETHINK
+Verdict: SHIP | FIX | RETHINK
 1. [S1|S2|S3] problem — evidence: <image and region | value | file:line> — fix — verify by
 Keep: up to 3 things that work and must survive refinement
 Not verified: what the evidence could not show

@@ -7,11 +7,15 @@ import { splitFrontmatter } from './lib/frontmatter.mjs';
 import { findDna, checkDna, sliceDna, DOMAINS } from './lib/dna.mjs';
 import { observe, diffRuns } from './lib/capture.mjs';
 import { launchBrowser } from './lib/browser.mjs';
-import { readRun, summary } from './lib/runs.mjs';
+import { readRun, summary, stateDir } from './lib/runs.mjs';
+import { checkPlan, findPlan, productTypes } from './lib/plan.mjs';
+import { review, reviewText, writeProof } from './lib/review.mjs';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
 
+  plan init --type <id>           create .nomi/plan.md: the product read, its jobs as flows, screens, done
+  plan check                      lint the plan; prints what the product type cannot ship without
   dna init                        create .nomi/dna.md from the template
   dna check [file]                lint the nearest .nomi/dna.md (exit 1 on findings)
   dna show [--for <domain>]       print DNA sections; domains: ${Object.keys(DOMAINS).join(', ')}
@@ -23,7 +27,11 @@ const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
     --wait 1800 --label "<text>"    bounded settling in ms (200–5000)
     --motion [--interact <file>]   animation inventory, load timeline and reduced-motion comparison;
                                    the file is a JSON list of hover, press, click, focus, scroll, wait steps
+    --flow <flows.json|plan.md>    run the jobs as steps: completed or the failing step, dead clicks,
+                                   console errors, a sheet per flow. Local targets only (--live: a URL the user named)
   diff <runA> <runB>               metric deltas and a before/after sheet
+  review [<url|file|dir>]         measured verdict from the latest runs and the plan; writes .nomi/proof.md.
+                                  With a target it first captures it and runs the flows of the plan or .nomi/flows.json
   probe print <web|motion>        runnable probe for a host browser tool
   critique pack --task "…" --run <id>  include measured evidence
   version
@@ -131,6 +139,53 @@ function critiquePack(opts) {
   return 0;
 }
 
+function planInit(opts) {
+  const types = productTypes(), type = types.find((t) => t.id === opts.type);
+  if (!type && opts.type !== 'other') fail(`plan init needs --type <id>, the kind of product this is: ${types.map((t) => `${t.id} (${t.name})`).join(', ')}, or other`);
+  const dir = stateDir(process.cwd()), target = path.join(dir, 'plan.md');
+  if (fs.existsSync(target)) fail(`${rel(target)} already exists; edit it instead`);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(target, read('assets', 'plan.md').replace('{{project}}', () => path.basename(path.dirname(dir))).replace('{{type}}', () => opts.type));
+  const lines = [`created ${rel(target)} (type ${opts.type}).`];
+  if (type) lines.push(`A ${type.name.toLowerCase()} product cannot ship without (set "covers" on the flow that does each):`, ...type.flows.map((f) => `  ${f.id}: ${f.job}`), 'Its reviewer asks:', ...type.questions.map((q) => `  - ${q}`));
+  lines.push('Write Read, Flows, Screens and Done before any interface file, then run: nomi plan check');
+  console.log(lines.join('\n'));
+  return 0;
+}
+
+function planCheck(opts, file) {
+  const target = file ? path.resolve(file) : findPlan();
+  if (!target || !fs.existsSync(target)) fail(`no .nomi/plan.md found from ${process.cwd()} upward; create one with: nomi plan init --type <id>`);
+  const result = checkPlan(fs.readFileSync(target, 'utf8'));
+  const lines = result.findings.map((f) => `${f.line ? `L${f.line}` : '--'}  ${f.code}  ${f.message}`);
+  if (result.uncovered.length) lines.push(`No flow covers, for a ${result.type} product: ${result.uncovered.map((f) => `${f.id} (${f.job})`).join('; ')}. Add the flow with "covers", or say under Done why it is out of scope.`);
+  if (result.questions.length) lines.push('The review will ask:', ...result.questions.map((q) => `  - ${q}`));
+  lines.push(result.findings.length ? `${rel(target)}: ${result.findings.length} finding(s)` : `${rel(target)}: ok, ${result.flows.length} flow(s). After building, run them: nomi observe <target> --flow ${rel(target)}`);
+  return print(opts, { file: target, ...result }, lines.join('\n'), result.findings.length ? 1 : 0);
+}
+
+// With a target, review first measures it: a fresh capture, then the flows of the plan or of .nomi/flows.json.
+async function runReview(opts, target) {
+  if (target) {
+    await observe(target, { live: opts.live });
+    const dir = stateDir(process.cwd()), flows = [findPlan(), path.join(dir, 'flows.json')].find((f) => f && fs.existsSync(f) && (path.basename(f) !== 'plan.md' || /^```json/m.test(fs.readFileSync(f, 'utf8'))));
+    if (flows) await observe(target, { flow: flows, live: opts.live });
+  }
+  const result = review(process.cwd());
+  const proof = Object.values(result.runs).some(Boolean) ? await writeProof(result) : null;
+  const lines = reviewText(result);
+  if (proof) lines.push(`Proof card: ${rel(proof.card)}${proof.image ? ` and ${rel(proof.image)} (open it)` : ''}`);
+  return print(opts, { verdict: result.verdict, blockers: result.blockers, judge: result.judge, notVerified: result.notVerified, runs: Object.fromEntries(Object.entries(result.runs).map(([k, r]) => [k, r?.id ?? null])), proof }, lines.join('\n'), result.blockers.length ? 1 : 0);
+}
+
+// The stage the work is in, for anything that wants to show it. Written only inside an existing .nomi/; nothing reads it yet.
+const STAGES = { plan: 'plan', dna: 'design', observe: 'measure', diff: 'measure', critique: 'review', review: 'review' };
+function stage(cmd, sub) {
+  const dir = stateDir(process.cwd());
+  if (!STAGES[cmd] || !fs.existsSync(dir)) return;
+  try { fs.writeFileSync(path.join(dir, 'stage.json'), `${JSON.stringify({ nomi: 1, stage: STAGES[cmd], command: [cmd, sub].filter((s) => s && !/[\\/.:]/.test(s)).join(' '), at: new Date().toISOString() })}\n`); } catch { /* a read-only project still gets its command */ }
+}
+
 async function doctor(opts) {
   const nodeOk = Number(process.versions.node.split('.')[0]) >= 22;
   const dna = findDna(process.cwd());
@@ -173,13 +228,18 @@ async function run(argv) {
       label: { type: 'string' },
       motion: { type: 'boolean' },
       interact: { type: 'string' },
+      flow: { type: 'string' },
+      live: { type: 'boolean' },
+      type: { type: 'string' },
     },
   });
   if (!cmd || cmd === 'help' || opts.help) return print({}, null, HELP);
   if (cmd === 'version') return print(opts, { version: version() }, `nomi ${version()}`);
   if (cmd === 'doctor') return doctor(opts);
+  stage(cmd, sub);
   if (cmd === 'observe' || cmd === 'diff') {
     const result = cmd === 'observe' ? await observe(sub, opts) : await diffRuns(sub, file, opts);
+    stage(cmd, sub); // the first run creates .nomi/
     return print(opts, result.report, summary(result.report).trim(), result.report.findings.length ? 1 : 0);
   }
   if (cmd === 'probe' && sub === 'print') {
@@ -188,6 +248,9 @@ async function run(argv) {
     process.stdout.write(read('scripts', 'probes', probes[file]));
     return 0;
   }
+  if (cmd === 'plan' && sub === 'init') return planInit(opts);
+  if (cmd === 'plan' && sub === 'check') return planCheck(opts, file);
+  if (cmd === 'review') return runReview(opts, sub);
   if (cmd === 'dna' && sub === 'init') return dnaInit();
   if (cmd === 'dna' && sub === 'check') return dnaCheck(opts, file);
   if (cmd === 'dna' && sub === 'show') return dnaShow(opts, file);
@@ -195,9 +258,17 @@ async function run(argv) {
   return fail(`unknown command "${[cmd, sub].filter(Boolean).join(' ')}"; run: nomi help`);
 }
 
+// No command may hang: every wait inside is bounded, and this is the bound on whatever was not foreseen (a browser that
+// neither answers nor dies inside a host sandbox). A finished command exits at once instead of waiting on leftover handles.
+const LIMIT = 240000;
+setTimeout(() => {
+  console.error(`nomi: the command did not finish in ${LIMIT / 1000} s and was stopped. Runs already written are in .nomi/runs/; what was not captured is not verified.`);
+  process.exit(2);
+}, LIMIT).unref();
 try {
   process.exitCode = await run(process.argv.slice(2));
 } catch (err) {
   console.error(`nomi: ${err.message.replace(/\r?\n/g, ' ')}`);
   process.exitCode = 2;
 }
+process.stdout.write('', () => process.stderr.write('', () => process.exit()));

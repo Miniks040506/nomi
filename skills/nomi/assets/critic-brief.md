@@ -21,7 +21,7 @@ You are an independent critic. You did not make this work and you have not seen 
 - At most 5 issues, ranked. S1 breaks function, access or intent. S2 weakens identity or coherence (an unexamined default, an off-direction choice). S3 is polish.
 
 ## Output
-Verdict: SHIP | REFINE | RETHINK
+Verdict: SHIP | FIX | RETHINK
 1. [S1|S2|S3] problem — evidence: … — fix: … — verify by: …
 Keep: up to 3 things that work and must survive refinement
 Not verified: what the evidence could not show

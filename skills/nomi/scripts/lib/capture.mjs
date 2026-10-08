@@ -9,6 +9,7 @@ import { createRun, saveRun, readRun } from './runs.mjs';
 import { findDna } from './dna.mjs';
 import { splitFrontmatter } from './frontmatter.mjs';
 import { captureMotion, parseScript } from './motion.mjs';
+import { captureFlows, parseFlows, isLocal } from './flow.mjs';
 
 export function parseViewports(values = ['1440x900','390x844']) {
   if (!values.length || values.length>4) throw new Error('use 1–4 viewports');
@@ -120,14 +121,18 @@ export function fingerprintFlags(census) {
 }
 export async function observe(target, opts={}) {
   if(!target) throw new Error('observe needs a URL, file or directory');
-  const viewports=parseViewports(opts.viewport ?? (opts.motion ? ['1440x900'] : undefined));
+  const viewports=parseViewports(opts.viewport ?? (opts.motion || opts.flow ? ['1440x900'] : undefined));
   if(opts.motion && viewports.length>1) throw new Error('--motion captures one viewport; pass a single --viewport');
   if(opts.interact && !opts.motion) throw new Error('--interact needs --motion');
+  if(opts.flow && (opts.motion || viewports.length>1)) throw new Error('--flow is its own run with one viewport; run --motion separately');
+  const flows=opts.flow ? parseFlows(fs.readFileSync(path.resolve(opts.cwd || process.cwd(),opts.flow),'utf8')) : null;
+  // A flow clicks, types and submits for real. It never runs on a site unless the user named that URL and asked for it.
+  if(flows && !isLocal(target) && !opts.live) throw new Error('--flow acts on the page for real, so it only runs on a local target (a file, a folder or a localhost URL). For another URL add --live, and only when the user named that URL and asked for it');
   const steps=opts.interact ? parseScript(fs.readFileSync(path.resolve(opts.cwd || process.cwd(),opts.interact),'utf8')) : [];
   const wait=opts.wait===undefined ? (opts.motion ? 4000 : 1800) : Number(opts.wait);
   if(!Number.isFinite(wait) || wait<200 || wait>5000) throw new Error('--wait must be 200–5000 ms');
   // The opt-in sandbox switch is for the project's own pages only: files, folders and loopback dev servers.
-  if(process.env.NOMI_BROWSER_NO_SANDBOX==='1' && /^https?:\/\//i.test(target) && !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[\/?#]|$)/i.test(target)) throw new Error('NOMI_BROWSER_NO_SANDBOX=1 only captures local pages (a file, a folder or a localhost URL); unset it for other URLs');
+  if(process.env.NOMI_BROWSER_NO_SANDBOX==='1' && !isLocal(target)) throw new Error('NOMI_BROWSER_NO_SANDBOX=1 only captures local pages (a file, a folder or a localhost URL); unset it for other URLs');
   const executable=findBrowser();
   let server,browser,run;
   try {
@@ -144,6 +149,11 @@ export async function observe(target, opts={}) {
     if(opts.motion) {
       report.kind='motion';
       await captureMotion({page,url,viewport:viewports[0],wait,steps,run,report,dark:opts.dark,settle,cwd:opts.cwd||process.cwd(),blank:()=>blankPage(browser)});
+      saveRun(run,report); return {...run,report};
+    }
+    if(flows) {
+      report.kind='flow';
+      await captureFlows({page,url,viewport:viewports[0],wait,flows,run,report,settle,blank:()=>blankPage(browser)});
       saveRun(run,report); return {...run,report};
     }
     for(const viewport of viewports) {
@@ -183,7 +193,7 @@ export async function observe(target, opts={}) {
 }
 export async function diffRuns(a,b,opts={}) {
   const before=readRun(a,opts.cwd).report, after=readRun(b,opts.cwd).report;
-  if(before.kind!==after.kind||!['web','motion'].includes(after.kind)) throw new Error('diff needs two observation runs of the same kind');
+  if(before.kind!==after.kind||!['web','motion','flow'].includes(after.kind)) throw new Error('diff needs two observation runs of the same kind');
   let browser,run;
   try {
     browser=await launchBrowser(); run=createRun(opts.cwd);
@@ -194,6 +204,12 @@ export async function diffRuns(a,b,opts={}) {
       metric('motion.animations',before.motion.animations.length,after.motion.animations.length);
       if(before.motion.load.settleMs!==null&&after.motion.load.settleMs!==null) metric('motion.settle-ms',before.motion.load.settleMs,after.motion.load.settleMs);
       for(const code of new Set([...before.findings,...after.findings].map(f=>f.code))) metric(code,count(before,code),count(after,code));
+    }
+    if(after.kind==='flow') {
+      const viewport=after.viewport, done=r=>r.flows.filter(f=>f.status==='completed').length, count=(r,code)=>r.findings.filter(f=>f.code===code).length;
+      deltas.push({viewport,metric:'flows.completed',before:done(before),after:done(after),delta:done(after)-done(before)});
+      for(const flow of after.flows) { const was=before.flows.find(f=>f.name===flow.name)?.status??'absent'; if(was!==flow.status) deltas.push({viewport,metric:`flow "${flow.name}"`,before:was,after:flow.status}); }
+      for(const code of new Set([...before.findings,...after.findings].map(f=>f.code))) deltas.push({viewport,metric:code,before:count(before,code),after:count(after,code),delta:count(after,code)-count(before,code)});
     }
     for(const current of after.viewports) {
       const previous=before.viewports.find(v=>v.width===current.width&&v.height===current.height);
@@ -206,7 +222,7 @@ export async function diffRuns(a,b,opts={}) {
     }
     const image=path.join(run.dir,'before-after.png');
     fs.writeFileSync(image,Buffer.from(await compose(browser.page,[before.images[0],after.images[0]],['Before','After']),'base64'));
-    const report={nomi:1,id:run.id,kind:'diff',before:a,after:b,deltas,viewports:[],images:[image],findings:[],notes:deltas.map(d=>`${d.viewport} ${d.metric||'viewport'}: ${d.unmatched?'no matching before viewport':`${d.before} → ${d.after} (${d.delta>=0?'+':''}${d.delta})`}`)};
+    const report={nomi:1,id:run.id,kind:'diff',before:a,after:b,deltas,viewports:[],images:[image],findings:[],notes:deltas.map(d=>`${d.viewport} ${d.metric||'viewport'}: ${d.unmatched?'no matching before viewport':`${d.before} → ${d.after}${d.delta===undefined?'':` (${d.delta>=0?'+':''}${d.delta})`}`}`)};
     saveRun(run,report); return {...run,report};
   } catch(error) { if(run) fs.rmSync(run.dir,{recursive:true,force:true}); throw error; }
   finally { await browser?.close(); }

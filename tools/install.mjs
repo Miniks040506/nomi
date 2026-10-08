@@ -18,6 +18,9 @@ export function resolveBin(bin, env = process.env) {
     const shim = path.join(dir, `${bin}.cmd`);
     const script = fs.existsSync(shim) && /%dp0%\\([^"\r\n]+?\.[cm]?js)"/.exec(fs.readFileSync(shim, 'utf8'));
     if (script) return [process.execPath, path.join(dir, script[1])];
+    // Cursor's shim is a PowerShell script over versions/<newest>/node.exe index.js; run that pair directly.
+    const versions = path.join(dir, 'versions'), newest = fs.existsSync(shim) && fs.existsSync(versions) && fs.readdirSync(versions).sort().at(-1);
+    if (newest && fs.existsSync(path.join(versions, newest, 'index.js'))) return [path.join(versions, newest, 'node.exe'), path.join(versions, newest, 'index.js')];
   }
   return null;
 }
@@ -27,7 +30,8 @@ export function targets(hosts, ids, scope, base) {
   const chosen = ids === 'all' ? hosts : hosts.filter((h) => ids.includes(h.id));
   const unknown = ids === 'all' ? [] : ids.filter((id) => !hosts.some((h) => h.id === id));
   if (unknown.length) throw new Error(`unknown host "${unknown[0]}"; use: ${hosts.map((h) => h.id).join(', ')}`);
-  return [...new Set(chosen.map((h) => path.join(base, scope === 'user' ? h.user : h.project)))];
+  // userWindows: a host whose home on Windows is not under the user folder's dot-directory (Hermes: %LOCALAPPDATA%\hermes).
+  return [...new Set(chosen.map((h) => path.join(base, scope === 'user' ? (process.platform === 'win32' && h.userWindows) || h.user : h.project)))];
 }
 
 export function install({ scope = 'project', hosts = 'all', dir = process.cwd(), home = os.homedir(), dryRun = false, uninstall = false, root = ROOT } = {}) {

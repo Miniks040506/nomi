@@ -34,7 +34,7 @@ export function saveRun(run, report) {
   fs.writeFileSync(path.join(run.dir, 'summary.md'), summary(report));
   const owned = fs.readdirSync(run.root, { withFileTypes: true }).filter(e => {
     if(!e.isDirectory() || !ID.test(e.name))return false;
-    try {const r=JSON.parse(fs.readFileSync(path.join(run.root,e.name,'report.json'),'utf8'));return r.nomi===1&&r.id===e.name&&['web','motion','diff'].includes(r.kind)&&Array.isArray(r.viewports)&&Array.isArray(r.images)&&Array.isArray(r.findings)&&Array.isArray(r.notes);}catch{return false;}
+    try {const r=JSON.parse(fs.readFileSync(path.join(run.root,e.name,'report.json'),'utf8'));return r.nomi===1&&r.id===e.name&&['web','motion','flow','diff'].includes(r.kind)&&Array.isArray(r.viewports)&&Array.isArray(r.images)&&Array.isArray(r.findings)&&Array.isArray(r.notes);}catch{return false;}
   }).map(e => e.name).sort();
   for (const id of owned.slice(0, -10)) fs.rmSync(path.join(run.root, id), { recursive: true, force: true, maxRetries: 3 });
 }

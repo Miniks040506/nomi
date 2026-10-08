@@ -43,5 +43,11 @@ Run `node <skill-dir>/scripts/nomi.mjs dna init`, or copy `assets/dna.md` to `.n
 
 Make the DNA visible to every future agent, including ones that never load this skill. `dna init` does this. By hand: append the line "Creative direction for this project lives in `.nomi/dna.md`: read it before changing anything people see, and follow its Never list." to AGENTS.md and CLAUDE.md where they exist, or create AGENTS.md with it.
 
+## With a plan
+When `.nomi/plan.md` exists, the direction also covers how the product is used, not only how it looks:
+- For each flow, fix what its screen shows in every state the plan lists (empty, loading, error, done) and what the person sees after the last step.
+- Say which of the product type's questions (`plan check` prints them) the direction answers, and with which choice.
+- Labels, button texts and messages named in the flows are fixed: the build uses those words.
+
 ## When the brief already decides
 Follow the brief exactly on every axis it fixes, including a look listed as a default in step 2. Apply steps 1–6 only to the axes it leaves open.

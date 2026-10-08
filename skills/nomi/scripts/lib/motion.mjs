@@ -103,7 +103,7 @@ function overview(motion) {
 const inventory = async page => { const found = await evaluate(page, fs.readFileSync(new URL('../probes/motion.js', import.meta.url), 'utf8')); found.animations = found.animations.filter(a => a.step >= 0); return found; };
 // Small captures: frames are for reading a sequence. With a pointer position, a 480x300 crop around it,
 // because a button's hover state is a few pixels of a full viewport.
-async function shot(page, file, point) {
+export async function shot(page, file, point) {
   const [x, y, width, height] = await evaluate(page, '[scrollX, scrollY, innerWidth, innerHeight]');
   const w = Math.min(480, width), h = Math.min(300, height), clamp = (v, max) => Math.max(0, Math.min(max, v));
   const clip = point ? { x: x + clamp(point.x - w / 2, width - w), y: y + clamp(point.y - h / 2, height - h), width: w, height: h, scale: 320 / w } : { x, y, width, height, scale: 0.5 };
@@ -123,7 +123,7 @@ async function watch(page, step, cap) {
 // Replay: pause the step's animations at document time t. A transition before its start shows its from-value.
 const seek = (page, step, t) => evaluate(page, `(() => { for (const [a, r] of window.__nomiMotion.seen) { if (r.step !== ${step} || r.start === null || a.timeline !== document.timeline || a.playState === 'idle') continue; try { a.pause(); const local = (${t} - r.start) * (a.playbackRate || 1); a.currentTime = a instanceof CSSTransition ? Math.max(0, local) : local; } catch {} } return new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => done(true)))); })()`);
 const release = (page, step) => evaluate(page, `(() => { for (const [a, r] of window.__nomiMotion.seen) { if (r.step !== ${step} || a.playState !== 'paused') continue; try { Number.isFinite(a.effect.getComputedTiming().endTime) ? a.finish() : a.play(); } catch {} } return new Promise(done => requestAnimationFrame(() => done(true))); })()`);
-const mouse = (page, type, point) => page.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+export const mouse = (page, type, point) => page.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: type === 'mouseMoved' ? 'none' : 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
 
 // Brings the step's target into view and returns its centre; null for steps without a pointer position.
 async function locate(page, step) {

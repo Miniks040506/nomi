@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-03",
+  "updated": "2026-10-07",
   "manifests": [
     "plugin.json",
     ".claude-plugin/plugin.json",
@@ -41,13 +41,13 @@
         "--max-budget-usd",
         "1"
       ],
-      "activation": "\"name\":\"Skill\",\"input\":\\{\"skill\":\"(?:nomi:)?nomi(?:-web)?\"",
+      "activation": "\"name\":\"Skill\",\"input\":\\{\"skill\":\"(?:nomi:)?nomi\"",
       "isolation": "Fresh CLAUDE_CONFIG_DIR holding only an access token; --setting-sources project; no MCP servers",
       "status": "L",
-      "version": "2.1.286",
-      "verified": "2026-10-01",
-      "evidence": "plugin and project-folder installs: skills listed, web skill activated, core CLI observe ran from the project, capture opened (evals/reports/migration-hybrid.md)",
-      "blocker": "2026-10-03 rerun not possible: CLI login expired"
+      "version": "2.1.289",
+      "verified": "2026-10-07",
+      "evidence": "skill activated; doctor ran (domains web); observe captured in the project; image read; subagents yes",
+      "blocker": null
     },
     {
       "id": "codex",
@@ -74,18 +74,18 @@
         "--",
         "{prompt}"
       ],
-      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "activation": "\"type\":\"command_execution\",\"command\":\"(?:[^\"\\\\]|\\\\.)*?nomi[\\\\/]+SKILL\\.md",
       "isolation": "Normal login and user config (--ignore-user-config makes exec reject every command as blocked by policy); --ignore-rules --ephemeral, memories disabled. User-level skills in ~/.agents/skills stay visible to both arms",
       "status": "L",
       "version": "0.159.3",
-      "verified": "2026-10-03",
-      "evidence": "project-folder install: skill read, doctor ran (domains web), observe captured in the project after the agent set NOMI_BROWSER_NO_SANDBOX=1, image read, subagents reported (evals/reports/hosts-2026-10-03.md)",
+      "verified": "2026-10-07",
+      "evidence": "skill activated; doctor ran (domains web); observe did not capture inside the workspace-write sandbox without NOMI_BROWSER_NO_SANDBOX=1 (it captures with it: Phase 6 runs); image read; subagents yes",
       "blocker": null
     },
     {
       "id": "cursor",
       "name": "Cursor",
-      "bin": "agent",
+      "bin": "cursor-agent",
       "project": ".agents/skills",
       "user": ".agents/skills",
       "channels": [
@@ -96,16 +96,20 @@
         "-p",
         "{prompt}",
         "--force",
+        "--trust",
+        "--model",
+        "auto",
         "--output-format",
-        "json"
+        "stream-json"
       ],
-      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
-      "isolation": "Not established",
-      "status": "D",
-      "version": null,
-      "verified": null,
-      "evidence": null,
-      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
+      "activation": "(?:readToolCall|shellToolCall)\":\\{\"args\":\\{\"(?:path|command)\":\"(?:[^\"\\\\]|\\\\.)*?nomi[\\\\/]+SKILL\\.md",
+      "isolation": "Normal login and user config; plan-included \"auto\" model",
+      "status": "L",
+      "version": "2026.10.01-e373342",
+      "verified": "2026-10-07",
+      "evidence": "skill activated; doctor ran (domains web); observe captured in the project; image read; subagents yes",
+      "blocker": null,
+      "note": "Started from Git Bash on Windows (SHELL set), Cursor runs user hooks through bash; a hook written for PowerShell then blocks every tool call. Start it from a Windows terminal"
     },
     {
       "id": "opencode",
@@ -122,13 +126,13 @@
         "--format",
         "json"
       ],
-      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md|\"name\":\\s*\"nomi(?:-web)?\"",
+      "activation": "nomi[\\\\/]+SKILL\\.md|\"name\":\\s*\"nomi\"",
       "isolation": "Not established",
       "status": "D",
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
+      "blocker": "CLI not installed on the test machine; needs install and a provider login"
     },
     {
       "id": "gemini",
@@ -146,13 +150,13 @@
         "--output-format",
         "json"
       ],
-      "activation": "activate_skill[^\\n]{0,200}nomi|nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "activation": "activate_skill[^\\n]{0,200}nomi|nomi[\\\\/]+SKILL\\.md",
       "isolation": "Not established",
       "status": "D",
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
+      "blocker": "CLI not installed on the test machine; needs install and sign-in"
     },
     {
       "id": "antigravity",
@@ -166,16 +170,20 @@
       "headless": [
         "-p",
         "{prompt}",
+        "--dangerously-skip-permissions",
+        "--model",
+        "gemini-3.8-flash-low",
         "--output-format",
-        "json"
+        "stream-json"
       ],
-      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
-      "isolation": "Not established",
-      "status": "D",
-      "version": null,
-      "verified": null,
-      "evidence": null,
-      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
+      "activation": "\"parameters\":\\{(?:\"\\w+\":(?:\"(?:[^\"\\\\]|\\\\.)*\"|[\\w.-]+),)*\"(?:AbsolutePath|CommandLine)\":\"(?:[^\"\\\\]|\\\\.)*?nomi[\\\\/]+SKILL\\.md",
+      "isolation": "Normal login and user config",
+      "status": "L",
+      "version": "1.3.1",
+      "verified": "2026-10-07",
+      "evidence": "skill activated; doctor ran (domains web); observe captured in the project; image read; subagents yes",
+      "blocker": null,
+      "note": "Its docs also name ~/.gemini/antigravity-cli/skills for the CLI at user level; not tried"
     },
     {
       "id": "openclaw",
@@ -196,13 +204,13 @@
         "{prompt}",
         "--json"
       ],
-      "activation": "nomi(?:-web)?[\\\\/]+SKILL\\.md",
+      "activation": "nomi[\\\\/]+SKILL\\.md",
       "isolation": "Not established",
       "status": "D",
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": "2026.5.22: skills listed as ready from ~/.agents/skills, but no agent run: bundled codex plugin fails to load and no provider keys are set",
+      "blocker": "2026.5.22: no agent run. The bundled codex plugin fails to load (config-DJXpBkGf.js) and no provider keys are set; rerun 2026-10-07, same result. Needs an upgrade or a provider key",
       "note": "project path is relative to the OpenClaw agent workspace (~/.openclaw/workspace by default), not the shell folder: install with --dir <workspace> or --scope user"
     },
     {
@@ -217,16 +225,64 @@
       ],
       "headless": [
         "chat",
+        "-Q",
+        "--yolo",
+        "--provider",
+        "copilot",
+        "-m",
+        "gpt-4.1",
+        "--format",
+        "stream-json",
         "-q",
         "{prompt}"
       ],
-      "activation": "skill_view[^\\n]{0,200}nomi|nomi(?:-web)?[\\\\/]+SKILL\\.md",
-      "isolation": "Not established",
+      "activation": "\"name\": ?\"skill_view\", ?\"input\": ?\\{\"name\": ?\"nomi\"|\"name\": ?\"(?:read_file|terminal)\", ?\"input\": ?\\{\"(?:path|command)\": ?\"(?:[^\"\\\\]|\\\\.)*?nomi[\\\\/]+SKILL\\.md",
+      "isolation": "Normal login and user config; the temp project is trusted for the run and untrusted after it",
+      "status": "L",
+      "version": "0.21.5+8894.g04dc7f8",
+      "verified": "2026-10-07",
+      "evidence": "skill activated (skill_view); observe captured in the project; image read; subagents yes. doctor output not seen: the first terminal command of a Hermes session on Windows prints only \"stdin is not a tty\" (any command; the second run of doctor prints domains web, motion)",
+      "blocker": null,
+      "prepare": [
+        "skills",
+        "trust",
+        "."
+      ],
+      "cleanup": [
+        "skills",
+        "untrust",
+        "."
+      ],
+      "userWindows": "AppData/Local/hermes/skills",
+      "note": "Project skills load only in a git repository after `hermes skills trust`. On Windows the Hermes home is %LOCALAPPDATA%\\hermes, not ~/.hermes. The run used --provider copilot -m gpt-4.1; set the model you have"
+    },
+    {
+      "id": "kiro",
+      "name": "Kiro",
+      "bin": "kiro-cli",
+      "project": ".kiro/skills",
+      "user": ".kiro/skills",
+      "channels": [
+        "folder"
+      ],
+      "headless": [
+        "chat",
+        "--no-interactive",
+        "--trust-all-tools",
+        "--model",
+        "qwen3-coder-next",
+        "--output-format",
+        "stream-json",
+        "{prompt}"
+      ],
+      "activation": "nomi[\\\\/]+SKILL\\.md",
+      "isolation": "Normal login and user config",
       "status": "D",
       "version": null,
       "verified": null,
       "evidence": null,
-      "blocker": "CLI not installed on the test machine; needs install and a signed-in account"
+      "blocker": "kiro-cli 2.27.1 is installed and signed in; no agent run yet: every Kiro model bills credits (cheapest 0.05x) and the user asked for runs that cost none. Folder path from the Kiro docs",
+      "note": "Reads .kiro/skills only (no .agents/skills)"
     }
   ]
 }

@@ -10,7 +10,7 @@
   const node = el => {
     if (el.id) return `#${CSS.escape(el.id)}`;
     const parts = [];
-    for (let e = el; e && e !== document.body; e = e.parentElement) {
+    for (let e = el; e && e !== document.body && e.parentElement; e = e.parentElement) { // a page may replace an element while the focus pass runs
       parts.unshift(`${e.localName}:nth-child(${[...e.parentElement.children].indexOf(e) + 1})`);
     }
     return parts.length ? `body > ${parts.join(' > ')}` : 'body';
@@ -92,6 +92,7 @@
     tapTargets:focusables.filter(e=>{const r=e.getBoundingClientRect();return r.width<24 || r.height<24;}).map(e=>({node:node(e),width:Math.round(e.getBoundingClientRect().width),height:Math.round(e.getBoundingClientRect().height)})),
     lineLength:texts.filter(e=>e.matches('p,li')).map(e=>({node:node(e),approxCharacters:Math.round(e.getBoundingClientRect().width/(parseFloat(getComputedStyle(e).fontSize)*.5))})),
     headings:elements.filter(e=>/^H[1-6]$/.test(e.tagName)).map(e=>({level:Number(e.tagName[1]),text:e.textContent.trim().slice(0,120)})),
+    controls:elements.filter(e=>e.matches('button,input:not([type=hidden]),select,textarea')).length,
     primaryActions:elements.filter(e=>e.matches('[data-primary],.primary,[aria-current="page"]')).map(e=>({node:node(e),text:e.textContent.trim().slice(0,80)})),
     focus:{method:'programmatic focus-visible heuristic; event handlers may run',tested:Math.min(200,focusables.length),nodes:focusables.slice(0,200).map(node),missing,truncated:focusables.length>200},
     nodes:elements.map(node),

@@ -40,16 +40,26 @@ export async function launchBrowser({ executable = findBrowser(), transport = 'a
       // Windows taskkill /T must see the living root to include its children.
       // A launcher that hands over to another process and exits with 0 (seen with Edge 154) leaves nothing for taskkill to find: ask that browser to close itself.
       const relaunched = child?.exitCode === 0;
-      if ((process.platform !== 'win32' || relaunched) && cdp && !cdp.closed) await cdp.send('Browser.close', {}, undefined, 1500).catch(() => {});
-      cdp?.close();
+      const askToClose = () => cdp && !cdp.closed ? cdp.send('Browser.close', {}, undefined, 1500).catch(() => {}) : null;
+      if (process.platform !== 'win32' || relaunched) await askToClose();
       if (child?.pid && child.exitCode === null) {
-        if (process.platform === 'win32') spawnSync(TASKKILL, ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 });
+        // Inside a host sandbox taskkill is refused (Codex on Windows: "Access denied"): the browser lived on and held its profile. Then it is asked too.
+        if (process.platform === 'win32') { if (spawnSync(TASKKILL, ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 }).status !== 0) { await askToClose(); child.kill(); } }
         else { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } }
         await Promise.race([new Promise(resolve => child.once('exit', resolve)), delay(2000)]);
       }
-      // Windows releases a killed tree's file locks late (EBUSY). A leftover temp folder is reported, never allowed to fail a finished capture.
-      await fs.promises.rm(profile, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 })
-        .catch(error => process.emitWarning(`temporary browser profile not removed: ${profile} (${error.code || error.message})`));
+      cdp?.close();
+      // A browser that outlives its launcher keeps the inherited stderr pipe open; without this the command would wait on it forever.
+      child?.stderr?.destroy(); child?.unref();
+      // Windows releases a closed browser's file locks late (EBUSY). A leftover temp folder is reported, never allowed to fail or hold a
+      // finished capture: rm's own retries nest per folder level, and with a browser that would not die they ran for minutes.
+      let left;
+      for (let tries = 0; tries < 30; tries++) { // about 9 s: a closed Edge has taken more than 3 s to let go
+        left = await fs.promises.rm(profile, { recursive: true, force: true }).then(() => null, error => error);
+        if (!left) break;
+        await delay(300);
+      }
+      if (left) process.emitWarning(`temporary browser profile not removed: ${profile} (${left.code || left.message})`);
     })();
     const interrupt = () => { close().finally(() => process.exit(130)); };
     process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt);
