@@ -31,6 +31,12 @@ Thumbs.db
 playwright-report/
 test-results/
 
+# By-products of rendering a video, and the old tour page: the README uses media/demo.mp4, media/preview.webp and media/examples/
+media/poster.png
+media/sheet.png
+media/video.json
+media/tour/
+
 # Nomi runtime artifacts
 .nomi/runs/
 /.nomi/

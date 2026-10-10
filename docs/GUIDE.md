@@ -5,7 +5,7 @@ The short version is the [README](../README.md); how it works inside is in [ARCH
 
 ## What you get
 
-What follows is the output of one run, the one in the video: [media/tour/run.txt](../media/tour/run.txt).
+What follows is the output of one run on Steep, a small tea timer.
 
 ### 1. The jobs, written as steps
 
@@ -31,7 +31,6 @@ For a new product or a redesign the agent first states what kind of product this
   ok   Nothing to save before a tea is poured: 4 steps, 1.2 s
 ```
 
-![The page after every step of the first job](../media/tour/flow.png)
 
 ### 3. A verdict from what was measured
 
@@ -59,7 +58,6 @@ Scenes:
 Check: passed.
 ```
 
-![The demo video of Steep, as the silent loop a README can show](../media/tour/steep-preview.webp)
 
 ### 5. A README that is checked
 
