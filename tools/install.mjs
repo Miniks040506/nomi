@@ -59,7 +59,7 @@ export function install({ scope = 'project', hosts = 'all', dir = process.cwd(),
 
 // Hosts load a skill only when the model judges it relevant, and measured that misses about four page edits in ten.
 // The project's instruction file is always read, so a project install adds one line there (and uninstall removes it).
-export const POINTER = 'Interface work in this project (pages, screens, components, styling, animation, on-page copy, redesign, UI review) uses the nomi skill: load it before reading or editing files. <!-- nomi -->';
+export const POINTER = 'Interface work in this project (pages, screens, components, styling, animation, on-page copy, redesign, UI review, a product README or demo video) uses the nomi skill: load it before reading or editing files. <!-- nomi -->';
 function point(dir, name, remove) {
   const file = path.join(dir, name), text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const rest = text.split(/\r?\n/).filter((l) => !l.includes('<!-- nomi -->')).join('\n').replace(/\n*$/, '');

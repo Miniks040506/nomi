@@ -10,6 +10,8 @@ import { launchBrowser } from './lib/browser.mjs';
 import { readRun, summary, stateDir } from './lib/runs.mjs';
 import { checkPlan, findPlan, productTypes } from './lib/plan.mjs';
 import { review, reviewText, writeProof } from './lib/review.mjs';
+import { record, compose, checkVideo, videoText } from './lib/record.mjs';
+import { checkReadme, runCommand } from './lib/readme.mjs';
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
@@ -32,6 +34,12 @@ const HELP = `usage: node <skill-dir>/scripts/nomi.mjs <command> [--json]
   diff <runA> <runB>               metric deltas and a before/after sheet
   review [<url|file|dir>]         measured verdict from the latest runs and the plan; writes .nomi/proof.md.
                                   With a target it first captures it and runs the flows of the plan or .nomi/flows.json
+  brandvid <url|file|dir>         the demo video, filmed from the product's flows as .nomi/storyboard.json orders them:
+    [--out <dir>]                  demo.mp4, poster.png, preview.webp and sheet.png in .nomi/video/ (exit 1 when its check fails)
+  brandvid compose <file.html>    render a trailer written as one 1920x1080 page (<html data-duration="22">), frame by frame, with sound
+  brandvid check [<dir>]          measure an existing video again: length, black or frozen stretches, flows, captions
+  readme check [file]             lint a README: media and local links that do not exist, commands nobody ran, claims
+  readme run "<command>"          run a quick-start command and record the result (--seconds 20: a server still up counts)
   probe print <web|motion>        runnable probe for a host browser tool
   critique pack --task "…" --run <id>  include measured evidence
   version
@@ -179,11 +187,42 @@ async function runReview(opts, target) {
 }
 
 // The stage the work is in, for anything that wants to show it. Written only inside an existing .nomi/; nothing reads it yet.
-const STAGES = { plan: 'plan', dna: 'design', observe: 'measure', diff: 'measure', critique: 'review', review: 'review' };
+const STAGES = { plan: 'plan', dna: 'design', observe: 'measure', diff: 'measure', critique: 'review', review: 'review', brandvid: 'present', readme: 'present' };
 function stage(cmd, sub) {
   const dir = stateDir(process.cwd());
   if (!STAGES[cmd] || !fs.existsSync(dir)) return;
   try { fs.writeFileSync(path.join(dir, 'stage.json'), `${JSON.stringify({ nomi: 1, stage: STAGES[cmd], command: [cmd, sub].filter((s) => s && !/[\\/.:]/.test(s)).join(' '), at: new Date().toISOString() })}\n`); } catch { /* a read-only project still gets its command */ }
+}
+
+async function brandvid(opts, sub, file) {
+  if (sub === 'check') {
+    const dir = path.resolve(file || path.join(stateDir(process.cwd()), 'video')), { report, findings } = await checkVideo(dir);
+    const lines = [...findings.map((f) => `${f.severity} ${f.code}: ${f.message}`), findings.some((f) => f.severity === 'S1') ? `${rel(dir)}: check FAILED` : `${rel(dir)}: check passed (${report.duration.toFixed(1)} s, ${report.scenes.filter((s) => s.status === 'completed').length} flow(s))`];
+    return print(opts, { dir, findings }, lines.join('\n'), findings.some((f) => f.severity === 'S1') ? 1 : 0);
+  }
+  const { report, outDir } = sub === 'compose' ? await compose(file, opts) : await record(sub, opts);
+  return print(opts, report, videoText(report, outDir || process.cwd()).join('\n'), report.findings.some((f) => f.severity === 'S1') ? 1 : 0);
+}
+
+async function readme(opts, sub, arg) {
+  const root = path.dirname(stateDir(process.cwd()));
+  if (sub === 'run') {
+    if (!arg) fail('readme run needs the command in quotes: nomi readme run "npm start"');
+    const seconds = opts.seconds === undefined ? 20 : Number(opts.seconds);
+    if (!(seconds >= 1 && seconds <= 200)) fail('--seconds must be 1–200');
+    const r = await runCommand(arg, { cwd: process.cwd(), seconds });
+    const how = r.alive ? `still running after ${seconds} s (counts as started; it was stopped)` : r.ok ? `exit 0 in ${r.seconds} s` : `FAILED with exit ${r.exit}`;
+    return print(opts, r, [`${r.command}: ${how}`, ...(r.output ? [r.output] : []), r.ok ? 'Recorded in .nomi/commands.json.' : 'Recorded as failed. A README must not tell a reader to run it as it is.'].join('\n'), r.ok ? 0 : 1);
+  }
+  if (sub !== 'check') fail('use: nomi readme check [file], or: nomi readme run "<command>"');
+  const target = path.resolve(arg || path.join(root, 'README.md'));
+  if (!fs.existsSync(target)) fail(`no README at ${rel(target)}`);
+  const findings = checkReadme(fs.readFileSync(target, 'utf8'), { root: path.dirname(target), cwd: process.cwd() });
+  const blocking = findings.filter((f) => f.severity === 'S1').length;
+  const lines = findings.slice(0, 50).map((f) => `L${f.line}  ${f.severity} ${f.code}  ${f.message}`);
+  if (findings.length > 50) lines.push(`... ${findings.length - 50} more`);
+  lines.push(blocking ? `${rel(target)}: ${blocking} to fix, ${findings.length - blocking} to judge` : `${rel(target)}: nothing to fix${findings.length ? `, ${findings.length} to judge` : ''}`);
+  return print(opts, { file: target, findings }, lines.join('\n'), blocking ? 1 : 0);
 }
 
 async function doctor(opts) {
@@ -231,6 +270,9 @@ async function run(argv) {
       flow: { type: 'string' },
       live: { type: 'boolean' },
       type: { type: 'string' },
+      storyboard: { type: 'string' },
+      seconds: { type: 'string' },
+      'no-sound': { type: 'boolean' },
     },
   });
   if (!cmd || cmd === 'help' || opts.help) return print({}, null, HELP);
@@ -251,6 +293,8 @@ async function run(argv) {
   if (cmd === 'plan' && sub === 'init') return planInit(opts);
   if (cmd === 'plan' && sub === 'check') return planCheck(opts, file);
   if (cmd === 'review') return runReview(opts, sub);
+  if (cmd === 'brandvid') return brandvid(opts, sub, file);
+  if (cmd === 'readme') return readme(opts, sub, file);
   if (cmd === 'dna' && sub === 'init') return dnaInit();
   if (cmd === 'dna' && sub === 'check') return dnaCheck(opts, file);
   if (cmd === 'dna' && sub === 'show') return dnaShow(opts, file);

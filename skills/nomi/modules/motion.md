@@ -12,6 +12,10 @@ The motion module of Nomi: animation, transitions, and hover, focus and press st
 ## Decide
 - Give each motion one job before writing it: orient (where this came from), confirm (the input was received), direct attention, or carry the signature. A motion without a job is not built.
 - Fix a timing scale of 2–3 durations in ms, one easing family with its curve values, and the order elements enter in. Write them in the direction note or the DNA's `## Motion` section, and reuse them instead of new values per component.
+- Give the scale roles, not just values. What arrives eases out and takes about twice as long as what leaves; what leaves eases in; what travels from one place to another eases both ways. One curve for everything reads flat.
+- Make it a grammar: the same kind of thing always moves the same way (every card pops, every line of text comes into focus where it stands, the one number travels). Text that rises in and lifts out again and again makes the type bob; keep travel for things.
+- Order a group in reading order, 60 to 120 ms apart, and cap the whole. On a change of view the old parts leave before the new arrive, and one element that stays (the number, the selected row) carries the eye across.
+- A press answers in the frame of the input and about the control's own centre: a small scale (0.96 to 0.98) for 120 to 200 ms, then the result. A pointer or a state that jumps sideways on press is a transform applied in the wrong order, not a style.
 - Decide what never moves, and what a visitor who asked for reduced motion gets instead: the same state change without travel, not nothing by accident.
 - For a repair, name the motions that must survive.
 
@@ -49,6 +53,7 @@ node <skill-dir>/scripts/nomi.mjs observe <url-or-index.html> --motion [--intera
 - Access: which `motion.reduced-motion` findings remain? Each is an element that still travels when reduced motion is requested. A clean run without `--interact` says nothing about hover and press states.
 - Job: name the job of each animation group in the summary in one phrase. Which group has none?
 - System: compare every measured duration, easing, delay and entrance order with the DNA's Motion section (the run prints it as `DNA Motion`) or the direction note. Quote both values. A mismatch on existing elements is drift, an S2 to fix in this task, unless a Decision records it as an exception.
+- Grammar: in the summary, do two elements of the same kind move with different durations or curves, and does anything leave more slowly than it arrived? Quote the values.
 - Sequence: in `load.png`, what does the eye follow, in which order, and is the page usable before the last frame? Cite frame labels.
 - Response: in `interactions.png`, does each state change read as an answer to the input by the first frame? Cite the step.
 - Cost: `motion.layout-property` and `motion.long-frame` are measured; frame rate in a headless browser is not. Do not claim smoothness from this run.

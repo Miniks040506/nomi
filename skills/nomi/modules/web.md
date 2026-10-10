@@ -5,6 +5,7 @@ The web module of Nomi: pages, app screens and components rendered in a browser.
 ## Decide
 - Read the existing page and token sources before choosing a direction. Preserve choices the brief or DNA explicitly names.
 - Fix the layout concept, type roles, palette roles, density, copy voice and one signature. Translate them into values in the direction note; do not add a second design document.
+- One style, written down: one way to show emphasis, one family of corner radii, one rule for depth, one accent with one job. A second way needs a reason in the direction note. Mixed treatments are what makes a page look assembled rather than designed.
 - For a repair, name what must survive. For a new surface, name the action the visitor should find first.
 
 ## Traps

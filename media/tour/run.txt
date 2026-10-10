@@ -1,0 +1,33 @@
+$ nomi observe index.html --flow .nomi/flows.json
+index.html
+1440x900 flows: 3 of 3 completed
+  ok   Steep an oolong and pour it: 7 steps, 3.3 s
+  ok   Save the brew with a tasting note: 7 steps, 2.2 s
+  ok   Nothing to save before a tea is poured: 4 steps, 1.2 s
+
+$ nomi review index.html
+Review
+Flows: 3 of 3 completed
+For you to judge (1):
+  - web.token-color : rgb(255, 255, 255) is outside declared tokens; intentional semantic color or drift? (run 1791513608146-f5d3662d-2cb0-4d54-8bc8-2e2349dd65c6)
+Not verified:
+  - motion, hover and press states: no --motion run
+  - contrast over images or gradients (reported as unknown)
+  - anything outside the flows that ran, and effects a flow cannot see (canvas, sound, clipboard)
+Measured verdict: nothing measured blocks SHIP. SHIP, FIX or RETHINK is now your judgment of the opened images.
+Proof card: .nomi\proof.md and .nomi\proof.png (open it)
+
+$ nomi brandvid index.html
+Video   .nomi/video/demo.mp4  22.3 s, 1920x1080, 4.1 MB (H.264 MP4, sound AAC)
+Preview .nomi/video/preview.webp  11 s loop, 0.5 MB (animated image)
+Poster  .nomi/video/poster.png
+Scenes:
+  ok   Steep an oolong and pour it: 2.5–10.7 s
+  ok   Save the brew with a tasting note: 10.7–19.3 s
+Note: The page is filmed at 1.4 times its size (browser zoom): its content is a narrow column in a 1440 px view.
+Note: The video shows only flows that completed while they were filmed, in the product's own time: nothing is cut or sped up.
+Note: sheet.png shows eight moments of the video with their times. Open it and poster.png before describing the video.
+In a README, from the repository itself (the preview plays; a click opens the video):
+  [![Demo](.nomi/video/preview.webp)](.nomi/video/demo.mp4)
+A player inside the README needs the file uploaded by hand: drag demo.mp4 into the README editor on the repository site and keep the link it inserts.
+Check: passed.

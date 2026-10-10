@@ -1,10 +1,18 @@
 {
-  "updated": "2026-09-27",
-  "note": "Adjectives that carry no decision on their own. In DNA direction sections each needs a concrete translation on the same line.",
+  "updated": "2026-10-08",
+  "note": "Adjectives that carry no decision on their own. In DNA direction sections each needs a concrete translation on the same line. `claims` are what a README or a demo video says without anything behind it; each is a question, not a ban.",
   "words": [
     "modern", "clean", "sleek", "minimal", "minimalist", "elegant", "intuitive", "seamless",
     "beautiful", "stunning", "premium", "professional", "user-friendly", "engaging", "dynamic",
     "vibrant", "bold", "immersive", "polished", "fresh", "cutting-edge", "innovative", "stylish",
     "sophisticated", "playful"
+  ],
+  "claims": [
+    { "id": "speed", "pattern": "\\b(?:blazing(?:ly)?[- ]fast|lightning[- ]fast|super[- ]fast|instantly)\\b", "question": "measured where? Give the number and how it was taken, or cut it." },
+    { "id": "ready", "pattern": "\\b(?:production[- ]ready|battle[- ]tested|enterprise[- ]grade|rock[- ]solid|bullet[- ]?proof|industry[- ]leading|world[- ]class|best[- ]in[- ]class|state[- ]of[- ]the[- ]art)\\b", "question": "what shows it? Name the evidence or cut it." },
+    { "id": "ease", "pattern": "\\b(?:seamless(?:ly)?|effortless(?:ly)?|intuitive|user[- ]friendly|easy[- ]to[- ]use|hassle[- ]free|just works|out of the box)\\b", "question": "say what the person does instead: the steps, or the flow that proves it." },
+    { "id": "looks", "pattern": "\\b(?:beautiful(?:ly)?|stunning|sleek|elegant|gorgeous|pixel[- ]perfect|cutting[- ]edge|next[- ]gen(?:eration)?|revolutionary|game[- ]chang(?:er|ing))\\b", "question": "show it with a capture instead of saying it." },
+    { "id": "all", "pattern": "\\b(?:fully (?:responsive|accessible|tested|featured)|100\\s?% (?:test )?coverage|WCAG(?: 2\\.\\d)? (?:A{1,3} )?compliant|works (?:on|in) (?:all|every) (?:browsers?|devices?))\\b", "question": "checked how, and where is the result? Say what was measured, or cut it." },
+    { "id": "number", "pattern": "\\b\\d+(?:\\.\\d+)?\\s?(?:x faster|x smaller|% faster|% smaller|% less|% more)\\b|\\b(?:trusted|used|loved) by\\b", "question": "where does this come from? Cite it or cut it." }
   ]
 }

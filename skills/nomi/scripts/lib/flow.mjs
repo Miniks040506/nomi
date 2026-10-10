@@ -85,7 +85,7 @@ export const HELPER = `(() => {
     // A checkbox or radio drawn by its label (the input itself clipped away) is clicked where a person clicks it.
     let r = e.getBoundingClientRect(); const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2), label = /^(checkbox|radio)$/.test(e.type) && top !== e && [...(e.labels || [])].find(f.visible);
     if (label) r = label.getBoundingClientRect();
-    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), visible: f.there(e), disabled: e.matches(':disabled') || e.getAttribute('aria-disabled') === 'true', field: (/^(INPUT|SELECT|TEXTAREA|LABEL)$/.test(e.tagName) && !/^(submit|button|reset|image)$/.test(e.type)) || e.isContentEditable };
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height), visible: f.there(e), disabled: e.matches(':disabled') || e.getAttribute('aria-disabled') === 'true', field: (/^(INPUT|SELECT|TEXTAREA|LABEL)$/.test(e.tagName) && !/^(submit|button|reset|image)$/.test(e.type)) || e.isContentEditable };
   };
   // "Click Saturday" also means choosing Saturday in a closed list.
   f.option = name => {
@@ -121,12 +121,12 @@ export const HELPER = `(() => {
   };
 })()`;
 
-const call = (page, fn, ...args) => evaluate(page, `window.__nomiFlow.${fn}(${args.map(a => JSON.stringify(a ?? null)).join(', ')})`);
+export const call = (page, fn, ...args) => evaluate(page, `window.__nomiFlow.${fn}(${args.map(a => JSON.stringify(a ?? null)).join(', ')})`);
 // null while a navigation is replacing the document
 const sig = page => call(page, 'sig').catch(() => null);
 
 // Everything the page does while a flow runs. On a local target a request that would change data on another site is refused.
-function track(page, local) {
+export function track(page, local) {
   const t = { inflight: new Set(), urls: new Map(), requests: 0, errors: [], failed: [], dialogs: [], blocked: [] };
   const listener = m => {
     if (m.sessionId !== page.sessionId) return;
@@ -153,68 +153,70 @@ function track(page, local) {
 // Waits for the page to come to rest after an action and says whether anything changed. With `before` (a click), nothing
 // changing for 600 ms with no timer of the page pending is the answer; otherwise it returns once loading, requests and
 // DOM mutations have been quiet for 150 ms. Bounded by cap.
-async function rest(page, t, before, cap = 2500) {
-  const requests = t.requests, dialogs = t.dialogs.length, start = Date.now();
-  for (let changed = !before; ; await delay(40)) {
-    const s = await sig(page), elapsed = Date.now() - start;
+// The clock a flow runs on: the machine's, unless the page is being filmed under its own (lib/clock.mjs).
+const REAL = { now: () => Date.now(), wait: ms => delay(ms) };
+async function rest(page, t, before, cap = 2500, clock = REAL) {
+  const requests = t.requests, dialogs = t.dialogs.length, start = clock.now();
+  for (let changed = !before; ; await clock.wait(40)) {
+    const s = await sig(page), elapsed = clock.now() - start;
     changed ||= !s || s.id !== before.id || s.n !== before.n || s.url !== before.url || s.form !== before.form || s.scroll !== before.scroll || t.requests !== requests || t.dialogs.length !== dialogs;
     if (elapsed >= cap || (changed ? s?.ready && !t.inflight.size && s.quiet >= 150 && elapsed >= 150 : elapsed >= 600 && !s.timers)) return changed;
   }
 }
 // A control may render a moment after the previous step: look for up to 1.5 s.
-async function locate(page, where, ready = p => p) {
-  for (const start = Date.now(); ; await delay(60)) {
+async function locate(page, where, ready = p => p, clock = REAL) {
+  for (const start = clock.now(); ; await clock.wait(60)) {
     const p = await call(page, 'at', where).catch(() => null);
-    if ((p && ready(p)) || Date.now() - start > 1500) return p;
+    if ((p && ready(p)) || clock.now() - start > 1500) return p;
   }
 }
 
-async function perform(page, step, t) {
+// `pace` (ms per character) types the way a person does, for a recording; a playtest inserts the text at once.
+export async function perform(page, step, t, pace = 0, clock = REAL) {
   const where = { target: step.target, name: step.name }, located = step.target || step.name;
   const fail = message => { throw new Error(message); };
-  if (step.do === 'wait') return void await delay(step.ms);
+  if (step.do === 'wait') return void await clock.wait(step.ms);
   if (step.do === 'expect') {
-    for (const start = Date.now(); ; await delay(80)) {
+    for (const start = clock.now(); ; await clock.wait(80)) {
       const miss = await call(page, 'check', step, t.dialogs.join(' ')).catch(() => 'the page did not answer');
       if (!miss) return;
-      if (Date.now() - start > (step.ms ?? 2000)) fail(miss);
+      if (clock.now() - start > (step.ms ?? 2000)) fail(miss);
     }
   }
   if (step.do === 'press-key') {
     const text = step.key === 'Enter' ? '\r' : step.key === 'Space' ? ' ' : step.key.length === 1 ? step.key : undefined;
     const key = { key: step.key === 'Space' ? ' ' : step.key, code: step.key.length === 1 ? undefined : step.key, windowsVirtualKeyCode: KEYS[step.key] ?? step.key.toUpperCase().charCodeAt(0), text };
     await page.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key }); await page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
-    return void await rest(page, t);
+    return void await rest(page, t, undefined, 2500, clock);
   }
   if (step.do === 'scroll' && !located) return void await evaluate(page, `scrollTo({ top: ${Number(step.y)}, behavior: 'instant' })`);
-  const p = await locate(page, where, p => step.do !== 'click' || (p.visible && !p.disabled));
-  if (!p && step.do === 'click' && step.name && await call(page, 'option', step.name).catch(() => false)) return void await rest(page, t);
+  const p = await locate(page, where, p => step.do !== 'click' || (p.visible && !p.disabled), clock);
+  if (!p && step.do === 'click' && step.name && await call(page, 'option', step.name).catch(() => false)) return void await rest(page, t, undefined, 2500, clock);
   if (!p) fail('nothing on the page matches');
   if (step.do === 'scroll') return;
   if (step.do === 'focus') return void await call(page, 'focus', where);
-  if (step.do === 'select') { const miss = await call(page, 'choose', where, step.value); if (miss) fail(miss); return void await rest(page, t); }
+  if (step.do === 'select') { const miss = await call(page, 'choose', where, step.value); if (miss) fail(miss); return void await rest(page, t, undefined, 2500, clock); }
   if (step.do === 'type') {
     const miss = await call(page, 'fill', where, step.text);
     if (miss && miss !== 'set') fail(miss);
-    if (!miss) await (step.text ? page.send('Input.insertText', { text: step.text }) : page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 }));
-    return void await rest(page, t);
+    if (!miss && !step.text) await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 });
+    else if (!miss) for (const text of pace ? [...step.text] : [step.text]) { await page.send('Input.insertText', { text }); if (pace) await clock.wait(pace); }
+    return void await rest(page, t, undefined, 2500, clock);
   }
   if (!p.visible) fail('it is not visible');
   await mouse(page, 'mouseMoved', p);
-  if (step.do === 'hover') return void await delay(120);
+  if (step.do === 'hover') return void await clock.wait(120);
   if (p.disabled) fail('it is disabled');
-  await delay(60); // hover handlers settle before the "before" state is read
+  await clock.wait(60); // hover handlers settle before the "before" state is read
   const before = await sig(page);
   await mouse(page, 'mousePressed', p); await mouse(page, 'mouseReleased', p);
   // Putting the caret in a field or ticking a box is the effect; only other clicks can be dead.
-  return { dead: !(await rest(page, t, before)) && !p.field };
+  return { dead: !(await rest(page, t, before, 2500, clock)) && !p.field };
 }
 
-async function play(ctx, flow, index, t) {
-  const { page, run } = ctx, started = Date.now(), steps = [], shots = [], labels = [];
-  const snap = async label => { try { shots.push(await shot(page, path.join(run.dir, `flow-${index + 1}-step-${shots.length}.png`))); labels.push(label); } catch { /* a page mid-navigation has no frame; the next step shows it */ } };
-  let reason = '';
-  // Every flow starts from a clean visit: no cookies or stored state from the flow before it.
+// Every flow starts from a clean visit: no cookies or stored state from the flow before it. Returns why the page did not open, or ''.
+export async function visit(ctx, flow, t) {
+  const { page } = ctx;
   await evaluate(page, 'try { sessionStorage.clear() } catch {}').catch(() => {});
   await page.send('Network.clearBrowserCookies').catch(() => {});
   await page.send('Storage.clearDataForOrigin', { origin: new URL(ctx.url).origin, storageTypes: 'all' }).catch(() => {});
@@ -224,7 +226,14 @@ async function play(ctx, flow, index, t) {
       const navigation = await page.send('Page.navigate', { url: new URL(flow.start || '', ctx.url).href });
       if (navigation.errorText) throw new Error(`navigate: ${navigation.errorText}`);
     });
-  } catch (error) { reason = error.message; }
+  } catch (error) { return error.message; }
+  return '';
+}
+
+async function play(ctx, flow, index, t) {
+  const { page, run } = ctx, started = Date.now(), steps = [], shots = [], labels = [];
+  const snap = async label => { try { shots.push(await shot(page, path.join(run.dir, `flow-${index + 1}-step-${shots.length}.png`))); labels.push(label); } catch { /* a page mid-navigation has no frame; the next step shows it */ } };
+  let reason = await visit(ctx, flow, t);
   await snap('start');
   for (const [i, step] of flow.steps.entries()) {
     if (reason) break;

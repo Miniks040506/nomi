@@ -1,0 +1,19 @@
+[
+  {"name": "The jobs are run, not assumed", "steps": [
+    {"do": "expect", "text": "3 jobs a script can run"},
+    {"do": "expect", "text": ".nomi/flows.json, first job"},
+    {"do": "click", "name": "Measure"},
+    {"do": "expect", "text": "3 of 3 flows completed"},
+    {"do": "expect", "text": "The page after every step of the first job"}
+  ]},
+  {"name": "The verdict comes from the evidence", "steps": [
+    {"do": "click", "name": "Review"},
+    {"do": "expect", "text": "nothing measured blocks SHIP"},
+    {"do": "expect", "text": ".nomi/proof.png, the proof card"}
+  ]},
+  {"name": "The demo is filmed from the jobs that passed", "steps": [
+    {"do": "click", "name": "Present"},
+    {"do": "expect", "text": "Check: passed"},
+    {"do": "expect", "text": ".nomi/video/poster.png"}
+  ]}
+]

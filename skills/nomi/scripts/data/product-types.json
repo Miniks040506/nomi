@@ -2,50 +2,50 @@
   "updated": "2026-10-06",
   "purpose": "Per product type: the jobs such a product cannot ship without, and what a reviewer asks of it. Never how it looks. The brief can drop or add any of them.",
   "types": [
-    {"id": "pos", "name": "Point of sale", "flows": [
+    {"id": "pos", "tone": "punchy", "name": "Point of sale", "flows": [
       {"id": "ring-up", "job": "Add items to a sale and see the running total"},
       {"id": "correct", "job": "Change or remove a line before paying"},
       {"id": "pay", "job": "Take payment and reach a receipt and an empty sale"}],
       "questions": ["Can a whole sale be finished without leaving the main screen?", "After a mistaken tap, how many actions bring the sale back to right?", "What does the screen show between two customers?"]},
-    {"id": "booking", "name": "Booking or reservation", "flows": [
+    {"id": "booking", "tone": "default", "name": "Booking or reservation", "flows": [
       {"id": "find-slot", "job": "See what is free for a chosen day"},
       {"id": "book", "job": "Reserve a slot and get a confirmation that repeats what, when and where"},
       {"id": "change", "job": "Cancel or move an existing booking"}],
       "questions": ["Is a taken slot told apart from a free one before it is chosen?", "Does the confirmation repeat the date, the time and the name?", "What does the person see when the details are incomplete or the slot is gone?"]},
-    {"id": "admin", "name": "Admin or record management", "flows": [
+    {"id": "admin", "tone": "calm", "name": "Admin or record management", "flows": [
       {"id": "find", "job": "Find one record by search or filter"},
       {"id": "create", "job": "Add a record and see it in the list"},
       {"id": "edit", "job": "Change a record and see the change in the list"},
       {"id": "delete", "job": "Remove a record, with a confirmation or a way back"}],
       "questions": ["After a save, is the result visible without a reload?", "Does a rejected save keep what was typed and say which field is wrong?", "What does the list show when it is empty and when nothing matches?"]},
-    {"id": "dashboard", "name": "Analytics dashboard", "flows": [
+    {"id": "dashboard", "tone": "calm", "name": "Analytics dashboard", "flows": [
       {"id": "read", "job": "Read the headline figure for the default period"},
       {"id": "filter", "job": "Change the period or segment and see every figure follow"},
       {"id": "drill", "job": "Go from a figure to the rows behind it"}],
       "questions": ["Does every figure state its unit and its period?", "What is shown for a period with no data?", "Which figure should be read first, and is it?"]},
-    {"id": "storefront", "name": "Storefront", "flows": [
+    {"id": "storefront", "tone": "punchy", "name": "Storefront", "flows": [
       {"id": "browse", "job": "Find a product by category or search"},
       {"id": "cart", "job": "Add to the cart, change a quantity and see the total follow"},
       {"id": "checkout", "job": "Enter details and reach an order confirmation"}],
       "questions": ["Is the full price known before the last step?", "Does the cart survive a reload?", "What does an unavailable product look like, and can it be ordered?"]},
-    {"id": "content", "name": "Content or editorial site", "flows": [
+    {"id": "content", "tone": "calm", "name": "Content or editorial site", "flows": [
       {"id": "find", "job": "Reach an article from the front page"},
       {"id": "next", "job": "Go on from the end of an article to another one, or subscribe"}],
       "questions": ["On a phone, do the title and the start of the text fit the first screen?", "Is there a next step at the end of an article?"]},
-    {"id": "onboarding", "name": "Sign-up or onboarding", "flows": [
+    {"id": "onboarding", "tone": "default", "name": "Sign-up or onboarding", "flows": [
       {"id": "sign-up", "job": "Create an account with valid details and land inside"},
       {"id": "invalid", "job": "Submit wrong or missing details and be told what to fix, with typed values kept"}],
       "questions": ["How many fields come before the first thing of value?", "Is every error next to its field, in words, and gone once fixed?", "Can the person leave and come back without starting over?"]},
-    {"id": "chat", "name": "Chat or support", "flows": [
+    {"id": "chat", "tone": "default", "name": "Chat or support", "flows": [
       {"id": "send", "job": "Send a message and see it in the thread"},
       {"id": "history", "job": "Open an earlier conversation"}],
       "questions": ["What is shown while a reply is pending, and when sending fails?", "Does the newest message stay in view?"]},
-    {"id": "docs", "name": "Documentation", "flows": [
+    {"id": "docs", "tone": "calm", "name": "Documentation", "flows": [
       {"id": "find", "job": "Reach a page by search or navigation"},
       {"id": "copy", "job": "Copy a code sample"},
       {"id": "move", "job": "Go to the next or the previous page"}],
       "questions": ["Does the navigation show where the reader is?", "Can a sample be copied in one action, with feedback?"]},
-    {"id": "landing", "name": "Landing page", "flows": [
+    {"id": "landing", "tone": "punchy", "name": "Landing page", "flows": [
       {"id": "act", "job": "Take the primary action from the first screen and see what happens next"},
       {"id": "learn", "job": "Get from the first screen to the price or the details"}],
       "questions": ["Is there exactly one primary action, and what happens after it is taken?", "Would the first screen still say what this is with the image removed?"]}

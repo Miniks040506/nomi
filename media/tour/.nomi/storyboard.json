@@ -1,0 +1,9 @@
+{
+  "hook": "Your agent says done. Nomi makes it prove it.",
+  "scenes": [
+    {"flow": "The jobs are run, not assumed", "caption": "The product's jobs are written as steps, then run for real"},
+    {"flow": "The verdict comes from the evidence", "caption": "The verdict comes from what was measured", "wow": 2},
+    {"flow": "The demo is filmed from the jobs that passed", "caption": "The demo is filmed from the jobs that passed"}
+  ],
+  "cta": "node tools/install.mjs --hosts claude --dir your-project"
+}

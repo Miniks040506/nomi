@@ -1,6 +1,6 @@
 ---
 name: nomi
-description: "Use for any web page, app screen or UI work, including small edits to an existing page: adding or changing sections, cards, forms, lists, layout, styling, animation or on-page copy; mobile, accessibility and readability fixes; designing, redesigning, polishing or reviewing an interface; setting a project's design direction. Checks the rendered result in a real browser and follows .nomi/dna.md."
+description: "Use for any web page, app screen or UI work, including small edits to an existing page: adding or changing sections, cards, forms, lists, layout, styling, animation or on-page copy; mobile, accessibility and readability fixes; designing, redesigning, polishing or reviewing interfaces; setting design direction; a product README or demo video. Checks results in a real browser, follows .nomi/dna.md."
 compatibility: Optional Node.js 22+ and a Chromium-family browser for rendered checks. Without them the process still applies and results are marked not visually verified.
 metadata:
   version: "0.1.0"
@@ -8,6 +8,8 @@ metadata:
 # Nomi
 
 Delivers interface work the way a product team would: plan, design, build, run and measure, review, fix, record. `<skill-dir>` is the folder containing this file. If the task changes nothing a person sees or reads, stop here.
+
+Asked only for a README or a demo video: open `<skill-dir>/modules/readme.md` or `<skill-dir>/modules/brandvid.md` and do that stage alone. The steps below are for interface work.
 
 **Every task, in order:**
 1. Read the nearest `.nomi/dna.md` (walk up from the project folder) before editing, and what its `sources` point to. Its Never list and Decisions bind; the brief's explicit wishes override them and everything in this skill. No DNA: the existing product is the direction; read its styles and pages before adding to them.
@@ -42,7 +44,7 @@ Proof: .nomi/proof.md
 |---|---|---|
 | Tweak | Small change inside an existing direction: copy, one colour, spacing, a value, a visual bug | Respect the DNA (above all Never), make the change, capture the result. No plan, no direction note, no flows, no critique, no review. |
 | Build | New component, page, section or content inside a direction | Direction note, build, capture, flows for the jobs it touches, critique, review verdict, at most 2 fix rounds, record decisions |
-| Create | New product, app or site; redesign; "make it distinctive"; or no DNA and this work defines the look | Plan, then `references/direction.md` and `.nomi/dna.md` from `assets/dna.md`, build, capture, flows, independent critique, review verdict with its proof card, at most 3 rounds, record |
+| Create | New product, app or site; redesign; "make it distinctive"; or no DNA and this work defines the look | Plan, then `references/direction.md` and `.nomi/dna.md` from `assets/dna.md`, build, capture, flows, independent critique, review verdict with its proof card, at most 3 rounds, record. On SHIP, ask the user in one line whether to present it (a README and a 20-second trailer, about five minutes); only on a yes, open `modules/readme.md` and `modules/brandvid.md` |
 
 Build tier: write this note in your reply before any code.
 ```
@@ -62,18 +64,20 @@ The steps above open these. A domain module holds what to decide, the capture op
 - `modules/web.md`: any page, screen or component. First command: `observe <url-or-index.html>`.
 - `modules/motion.md`: the task adds or changes animation, transitions, or hover, focus and press states. First command: `observe <target> --motion`.
 - `modules/review.md`: the end of Build and Create work, and any request to review an interface. First command: `review`.
+- `modules/readme.md`: a README is asked for, or a delivery is to be presented. First command: `readme run "<command>"`.
+- `modules/brandvid.md`: a demo or launch video is asked for, or a README needs its demo. First command: `brandvid compose .nomi/video.html`.
 - Work with no module (3D scenes, native apps): apply the steps above, render and open evidence if you can, otherwise say "not visually verified".
 
 ## Asked for by name
 
 - "nomi" with a task: work out which modules the task needs and run the steps above.
-- One part by name ("nomi-plan", "nomi-web", "nomi-motion", "nomi-review", "nomi web …"): open that part's file under `modules/` and do that part alone, to the same standard. The DNA, the capture and the honesty rules still apply.
-- A part with no file in `modules/` (readme, brandvid, mobile, 3d) is not in this version: say so in one line, then do the task with the steps above.
+- One part by name ("nomi-plan", "nomi-web", "nomi-motion", "nomi-review", "nomi-readme", "nomi-brandvid", "nomi web …"): open that part's file under `modules/` and do that part alone, to the same standard. The DNA, the capture and the honesty rules still apply.
+- A part with no file in `modules/` (mobile, 3d) is not in this version: say so in one line, then do the task with the steps above.
 
 ## Scripts
 
 `node <skill-dir>/scripts/nomi.mjs <command>`, run from the project folder (runs are saved in its `.nomi/runs/`):
-`observe <url-or-file> [--motion | --flow <file>]`, `diff <before-id> <after-id>`, `review <url-or-file>`, `plan init --type <id>`, `plan check`, `dna init`, `dna check`, `dna show --for <domain>`, `critique pack --task "…" --run <id>`, `probe print <web|motion>`, `doctor`.
+`observe <url-or-file> [--motion | --flow <file>]`, `diff <before-id> <after-id>`, `review <url-or-file>`, `brandvid compose <file.html>`, `brandvid <url-or-file>`, `brandvid check`, `readme check`, `readme run "<command>"`, `plan init --type <id>`, `plan check`, `dna init`, `dna check`, `dna show --for <domain>`, `critique pack --task "…" --run <id>`, `probe print <web|motion>`, `doctor`.
 - Exit 1 from `observe` means findings were recorded; it is not a failed capture.
 - If the browser cannot start, run `probe print web` through a browser tool of your environment and open its screenshots. With no browser at all, say "not visually verified" and cite code only.
 - Without Node: copy `assets/dna.md` to `.nomi/dna.md` by hand and fill it in.
